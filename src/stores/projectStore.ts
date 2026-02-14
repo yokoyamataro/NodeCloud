@@ -5,60 +5,8 @@ import type { Project, ProjectFieldWithDetails, WorkType } from '@/types/databas
 // デモモードの判定
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
 
-// デモ用データ
-const demoProjects: Project[] = [
-  {
-    id: '00000000-0000-0000-0000-000000000001',
-    name: '令和6年度 空知地区農地整備事業',
-    description: '空知地区における暗渠排水・客土工事',
-    area_polygon: null,
-    status: 'active',
-    start_date: '2024-04-01',
-    end_date: '2024-11-30',
-    fiscal_year: 2024,
-    project_number: 'R6-001',
-    client_name: '北海道開発局',
-    contractor_name: '株式会社サンプル建設',
-    coordinate_system: 'EPSG:6677',
-    created_by: 'demo-user-id',
-    created_at: '2024-03-01T00:00:00Z',
-    updated_at: '2024-03-01T00:00:00Z',
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000002',
-    name: '令和6年度 十勝地区圃場整備事業',
-    description: '十勝地区における圃場整備・明渠工事',
-    area_polygon: null,
-    status: 'planned',
-    start_date: '2024-06-01',
-    end_date: '2025-03-31',
-    fiscal_year: 2024,
-    project_number: 'R6-002',
-    client_name: '北海道開発局',
-    contractor_name: '株式会社サンプル建設',
-    coordinate_system: 'EPSG:6678',
-    created_by: 'demo-user-id',
-    created_at: '2024-03-15T00:00:00Z',
-    updated_at: '2024-03-15T00:00:00Z',
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000003',
-    name: '令和5年度 上川地区土壌改良事業',
-    description: '上川地区における土壌改良・心土破砕工事',
-    area_polygon: null,
-    status: 'completed',
-    start_date: '2023-05-01',
-    end_date: '2023-12-15',
-    fiscal_year: 2023,
-    project_number: 'R5-001',
-    client_name: '旭川開発建設部',
-    contractor_name: '株式会社サンプル建設',
-    coordinate_system: 'EPSG:6677',
-    created_by: 'demo-user-id',
-    created_at: '2023-04-01T00:00:00Z',
-    updated_at: '2023-12-15T00:00:00Z',
-  },
-]
+// デモ用データ（空配列 - サンプル工事は削除済み）
+const demoProjects: Project[] = []
 
 const demoWorkTypes: WorkType[] = [
   { id: 'wt-1', code: 'underdrain', name: '暗渠', display_order: 1, color: '#3B82F6', icon: null },

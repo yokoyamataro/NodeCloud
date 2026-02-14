@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Filter, Building2, Calendar, MapPin } from 'lucide-react'
+import { Plus, Search, Filter, Building2, Calendar, MapPin, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,10 +11,21 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Select,
   SelectContent,
@@ -69,11 +80,14 @@ const initialFormData: ProjectFormData = {
 }
 
 export function ProjectListPage() {
-  const { projects, fetchProjects, createProject, isLoading } = useProjectStore()
+  const { projects, fetchProjects, createProject, updateProject, deleteProject, isLoading } = useProjectStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all')
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<string | null>(null)
+  const [deletingProject, setDeletingProject] = useState<{ id: string; name: string } | null>(null)
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData)
 
   useEffect(() => {
@@ -118,12 +132,79 @@ export function ProjectListPage() {
     }
   }
 
+  const handleUpdateProject = async () => {
+    if (!editingProject) return
+    try {
+      await updateProject(editingProject, {
+        name: formData.name,
+        description: formData.description || null,
+        start_date: formData.start_date || null,
+        end_date: formData.end_date || null,
+        fiscal_year: formData.fiscal_year,
+        project_number: formData.project_number || null,
+        client_name: formData.client_name || null,
+        contractor_name: formData.contractor_name || null,
+        coordinate_system: formData.coordinate_system || null,
+      })
+      setIsDialogOpen(false)
+      setEditingProject(null)
+      setFormData(initialFormData)
+    } catch (error) {
+      console.error('Failed to update project:', error)
+      alert('工事の更新に失敗しました: ' + (error as Error).message)
+    }
+  }
+
+  const handleDeleteProject = async () => {
+    if (!deletingProject) return
+    try {
+      await deleteProject(deletingProject.id)
+      setIsDeleteDialogOpen(false)
+      setDeletingProject(null)
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+      alert('工事の削除に失敗しました: ' + (error as Error).message)
+    }
+  }
+
+  const openEditDialog = (project: typeof projects[0], e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setEditingProject(project.id)
+    setFormData({
+      fiscal_year: project.fiscal_year || currentYear,
+      name: project.name,
+      project_number: project.project_number || '',
+      client_name: project.client_name || '',
+      contractor_name: project.contractor_name || '',
+      start_date: project.start_date || '',
+      end_date: project.end_date || '',
+      coordinate_system: project.coordinate_system || 'EPSG:6680',
+      description: project.description || '',
+    })
+    setIsDialogOpen(true)
+  }
+
+  const openDeleteDialog = (project: typeof projects[0], e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeletingProject({ id: project.id, name: project.name })
+    setIsDeleteDialogOpen(true)
+  }
+
   const openCreateDialog = () => {
+    setEditingProject(null)
     setFormData({
       ...initialFormData,
       fiscal_year: currentYear,
     })
     setIsDialogOpen(true)
+  }
+
+  const closeDialog = () => {
+    setIsDialogOpen(false)
+    setEditingProject(null)
+    setFormData(initialFormData)
   }
 
   if (isLoading && projects.length === 0) {
@@ -234,9 +315,27 @@ export function ProjectListPage() {
                         {project.description || '説明なし'}
                       </CardDescription>
                     </div>
-                    <Badge className={getStatusColor(project.status)}>
-                      {getStatusLabel(project.status)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(project.status)}>
+                        {getStatusLabel(project.status)}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => openEditDialog(project, e)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => openDeleteDialog(project, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -290,11 +389,14 @@ export function ProjectListPage() {
         )}
       </div>
 
-      {/* 工事追加ダイアログ */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* 工事追加・編集ダイアログ */}
+      <Dialog open={isDialogOpen} onOpenChange={closeDialog}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>新規工事の追加</DialogTitle>
+            <DialogTitle>{editingProject ? '工事情報の編集' : '新規工事の追加'}</DialogTitle>
+            <DialogDescription>
+              {editingProject ? '工事情報を編集します。' : '新しい工事を追加します。'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -417,18 +519,42 @@ export function ProjectListPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={closeDialog}>
               キャンセル
             </Button>
             <Button
-              onClick={handleCreateProject}
+              onClick={editingProject ? handleUpdateProject : handleCreateProject}
               disabled={!formData.name.trim() || !formData.fiscal_year}
             >
-              追加
+              {editingProject ? '保存' : '追加'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>工事を削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{deletingProject?.name}」を削除します。この操作は取り消せません。
+              関連する農家・圃場データも全て削除されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingProject(null)}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              削除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
