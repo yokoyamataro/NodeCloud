@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, MapPin, Ruler, User, ChevronRight, Map } from 'lucide-react'
+import { Plus, Search, MapPin, Ruler, User, ChevronRight, Map, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,6 +51,26 @@ const initialFormData: FieldFormData = {
   notes: '',
 }
 
+interface FarmerFormData {
+  farmer_number: number
+  name: string
+  address: string
+  email: string
+  phone: string
+  mobile_phone: string
+  notes: string
+}
+
+const initialFarmerFormData: FarmerFormData = {
+  farmer_number: 1,
+  name: '',
+  address: '',
+  email: '',
+  phone: '',
+  mobile_phone: '',
+  notes: '',
+}
+
 export function FieldListPage() {
   const navigate = useNavigate()
   const {
@@ -62,13 +82,16 @@ export function FieldListPage() {
     fetchFarmers,
     fetchProjectFields,
     createField,
+    createFarmer,
   } = useFieldStore()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterFarmer, setFilterFarmer] = useState<string>('all')
   const [filterPolygon, setFilterPolygon] = useState<'all' | 'with' | 'without'>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isFarmerDialogOpen, setIsFarmerDialogOpen] = useState(false)
   const [formData, setFormData] = useState<FieldFormData>(initialFormData)
+  const [farmerFormData, setFarmerFormData] = useState<FarmerFormData>(initialFarmerFormData)
 
   useEffect(() => {
     fetchFields()
@@ -122,6 +145,40 @@ export function FieldListPage() {
     }
   }
 
+  const handleCreateFarmer = async () => {
+    try {
+      await createFarmer({
+        farmer_number: farmerFormData.farmer_number,
+        project_id: 'project-1', // TODO: 動的に設定
+        name: farmerFormData.name,
+        contact_info: {
+          address: farmerFormData.address || undefined,
+          email: farmerFormData.email || undefined,
+          phone: farmerFormData.phone || undefined,
+          mobile_phone: farmerFormData.mobile_phone || undefined,
+          notes: farmerFormData.notes || undefined,
+        },
+      })
+      setIsFarmerDialogOpen(false)
+      setFarmerFormData({
+        ...initialFarmerFormData,
+        farmer_number: farmers.length + 2, // 次の番号を自動設定
+      })
+    } catch (error) {
+      console.error('Failed to create farmer:', error)
+    }
+  }
+
+  // 農家追加ダイアログを開く際に次の番号を設定
+  const openFarmerDialog = () => {
+    const maxNumber = farmers.reduce((max, f) => Math.max(max, f.farmer_number), 0)
+    setFarmerFormData({
+      ...initialFarmerFormData,
+      farmer_number: maxNumber + 1,
+    })
+    setIsFarmerDialogOpen(true)
+  }
+
   const getFieldProgress = (fieldId: string): number => {
     const pf = projectFields.find((p) => p.field_id === fieldId)
     if (!pf || pf.assignments.length === 0) return 0
@@ -143,10 +200,16 @@ export function FieldListPage() {
             登録されている圃場の情報を管理します
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          圃場を追加
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openFarmerDialog}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            農家を追加
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            圃場を追加
+          </Button>
+        </div>
       </div>
 
       {/* フィルター・検索 */}
@@ -392,6 +455,111 @@ export function FieldListPage() {
             <Button
               onClick={handleCreateField}
               disabled={!formData.farmer_id || !formData.field_number}
+            >
+              追加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 農家追加ダイアログ */}
+      <Dialog open={isFarmerDialogOpen} onOpenChange={setIsFarmerDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>農家を追加</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="farmer_number">番号 *</Label>
+                <Input
+                  id="farmer_number"
+                  type="number"
+                  min={1}
+                  value={farmerFormData.farmer_number}
+                  onChange={(e) =>
+                    setFarmerFormData({ ...farmerFormData, farmer_number: parseInt(e.target.value) || 1 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="farmer_name">名前 *</Label>
+                <Input
+                  id="farmer_name"
+                  value={farmerFormData.name}
+                  onChange={(e) =>
+                    setFarmerFormData({ ...farmerFormData, name: e.target.value })
+                  }
+                  placeholder="山田農場"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="farmer_address">住所</Label>
+              <Input
+                id="farmer_address"
+                value={farmerFormData.address}
+                onChange={(e) =>
+                  setFarmerFormData({ ...farmerFormData, address: e.target.value })
+                }
+                placeholder="北海道旭川市..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="farmer_email">メールアドレス</Label>
+              <Input
+                id="farmer_email"
+                type="email"
+                value={farmerFormData.email}
+                onChange={(e) =>
+                  setFarmerFormData({ ...farmerFormData, email: e.target.value })
+                }
+                placeholder="example@example.com"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="farmer_phone">電話番号</Label>
+                <Input
+                  id="farmer_phone"
+                  type="tel"
+                  value={farmerFormData.phone}
+                  onChange={(e) =>
+                    setFarmerFormData({ ...farmerFormData, phone: e.target.value })
+                  }
+                  placeholder="0166-12-3456"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="farmer_mobile_phone">携帯電話番号</Label>
+                <Input
+                  id="farmer_mobile_phone"
+                  type="tel"
+                  value={farmerFormData.mobile_phone}
+                  onChange={(e) =>
+                    setFarmerFormData({ ...farmerFormData, mobile_phone: e.target.value })
+                  }
+                  placeholder="090-1234-5678"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="farmer_notes">備考</Label>
+              <Textarea
+                id="farmer_notes"
+                value={farmerFormData.notes}
+                onChange={(e) => setFarmerFormData({ ...farmerFormData, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFarmerDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleCreateFarmer}
+              disabled={!farmerFormData.farmer_number || !farmerFormData.name.trim()}
             >
               追加
             </Button>
