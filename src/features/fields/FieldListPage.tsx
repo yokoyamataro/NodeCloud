@@ -23,6 +23,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFieldStore } from '@/stores/fieldStore'
+import { useProjectStore } from '@/stores/projectStore'
 import type { FieldWithFarmer } from '@/types/database'
 
 const SOIL_TYPES = [
@@ -52,6 +53,7 @@ const initialFormData: FieldFormData = {
 }
 
 interface FarmerFormData {
+  project_id: string
   farmer_number: number
   name: string
   address: string
@@ -62,6 +64,7 @@ interface FarmerFormData {
 }
 
 const initialFarmerFormData: FarmerFormData = {
+  project_id: '',
   farmer_number: 1,
   name: '',
   address: '',
@@ -84,6 +87,7 @@ export function FieldListPage() {
     createField,
     createFarmer,
   } = useFieldStore()
+  const { projects, fetchProjects } = useProjectStore()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterFarmer, setFilterFarmer] = useState<string>('all')
@@ -96,8 +100,9 @@ export function FieldListPage() {
   useEffect(() => {
     fetchFields()
     fetchFarmers()
+    fetchProjects()
     fetchProjectFields('project-1')
-  }, [fetchFields, fetchFarmers, fetchProjectFields])
+  }, [fetchFields, fetchFarmers, fetchProjects, fetchProjectFields])
 
   const filteredFields = fields.filter((field) => {
     const matchesSearch =
@@ -152,10 +157,10 @@ export function FieldListPage() {
 
   const handleCreateFarmer = async () => {
     try {
-      // 既存の農家からproject_idを取得、なければデフォルト値を使用
-      const projectId = farmers.length > 0
-        ? farmers[0].project_id
-        : import.meta.env.VITE_DEFAULT_PROJECT_ID || '00000000-0000-0000-0000-000000000001'
+      if (!farmerFormData.project_id) {
+        alert('工事を選択してください')
+        return
+      }
 
       // contact_infoから空の値を除外
       const contactInfo: Record<string, string> = {}
@@ -167,7 +172,7 @@ export function FieldListPage() {
 
       await createFarmer({
         farmer_number: farmerFormData.farmer_number,
-        project_id: projectId,
+        project_id: farmerFormData.project_id,
         name: farmerFormData.name,
         contact_info: Object.keys(contactInfo).length > 0 ? contactInfo : null,
       })
@@ -486,6 +491,30 @@ export function FieldListPage() {
             <DialogTitle>農家を追加</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="farmer_project_id">工事 *</Label>
+              <Select
+                value={farmerFormData.project_id}
+                onValueChange={(v) => setFarmerFormData({ ...farmerFormData, project_id: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="工事を選択してください" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.fiscal_year && `${project.fiscal_year}年度 `}
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {projects.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  工事が登録されていません。先に工事を追加してください。
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="farmer_number">番号 *</Label>
@@ -576,7 +605,7 @@ export function FieldListPage() {
             </Button>
             <Button
               onClick={handleCreateFarmer}
-              disabled={!farmerFormData.farmer_number || !farmerFormData.name.trim()}
+              disabled={!farmerFormData.project_id || !farmerFormData.farmer_number || !farmerFormData.name.trim()}
             >
               追加
             </Button>
