@@ -147,18 +147,29 @@ export function FieldListPage() {
 
   const handleCreateFarmer = async () => {
     try {
+      // 既存の農家からproject_idを取得、なければデフォルト値を使用
+      const projectId = farmers.length > 0
+        ? farmers[0].project_id
+        : import.meta.env.VITE_DEFAULT_PROJECT_ID || '00000000-0000-0000-0000-000000000001'
+
+      // contact_infoから空の値を除外
+      const contactInfo: Record<string, string> = {}
+      if (farmerFormData.address) contactInfo.address = farmerFormData.address
+      if (farmerFormData.email) contactInfo.email = farmerFormData.email
+      if (farmerFormData.phone) contactInfo.phone = farmerFormData.phone
+      if (farmerFormData.mobile_phone) contactInfo.mobile_phone = farmerFormData.mobile_phone
+      if (farmerFormData.notes) contactInfo.notes = farmerFormData.notes
+
       await createFarmer({
         farmer_number: farmerFormData.farmer_number,
-        project_id: 'project-1', // TODO: 動的に設定
+        project_id: projectId,
         name: farmerFormData.name,
-        contact_info: {
-          address: farmerFormData.address || undefined,
-          email: farmerFormData.email || undefined,
-          phone: farmerFormData.phone || undefined,
-          mobile_phone: farmerFormData.mobile_phone || undefined,
-          notes: farmerFormData.notes || undefined,
-        },
+        contact_info: Object.keys(contactInfo).length > 0 ? contactInfo : null,
       })
+
+      // 農家一覧を再取得
+      await fetchFarmers()
+
       setIsFarmerDialogOpen(false)
       setFarmerFormData({
         ...initialFarmerFormData,
@@ -166,6 +177,7 @@ export function FieldListPage() {
       })
     } catch (error) {
       console.error('Failed to create farmer:', error)
+      alert('農家の追加に失敗しました: ' + (error as Error).message)
     }
   }
 

@@ -402,10 +402,13 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     try {
       const useDemoMode = isDemoMode()
 
-      if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
+      if (useDemoMode) {
         const newFarmer: Farmer = {
-          ...farmerData,
           id: `farmer-${Date.now()}`,
+          farmer_number: farmerData.farmer_number,
+          project_id: farmerData.project_id,
+          name: farmerData.name,
+          contact_info: farmerData.contact_info || null,
           created_at: new Date().toISOString(),
         }
         set((state) => ({
@@ -417,7 +420,12 @@ export const useFieldStore = create<FieldState>((set, get) => ({
 
       const { data, error } = await supabase
         .from('farmers')
-        .insert(farmerData)
+        .insert({
+          farmer_number: farmerData.farmer_number,
+          project_id: farmerData.project_id,
+          name: farmerData.name,
+          contact_info: farmerData.contact_info || null,
+        })
         .select()
         .single()
 
