@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType } from '@/types/database'
 
+// デモモードの判定（環境変数が設定されていない場合はデモモード）
+const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
+
 // デモ用の工種データ
 const mockWorkTypes: WorkType[] = [
   { id: 'wt-1', code: 'underdrain', name: '暗渠', display_order: 1, color: '#3B82F6', icon: null },
@@ -190,7 +193,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   fetchFields: async (projectId?: string) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         set({ fields: mockFields, isLoading: false })
@@ -218,7 +221,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   fetchFarmers: async (projectId?: string) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         const farmers = projectId
@@ -249,7 +252,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   fetchProjectFields: async (projectId: string) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         set({ projectFields: createMockProjectFields(), isLoading: false })
@@ -284,7 +287,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   createField: async (fieldData, farmerId) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
       const farmer = get().farmers.find((f) => f.id === farmerId)
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
@@ -324,7 +327,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   updateField: async (id, fieldData) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         set((state) => ({
@@ -339,20 +342,20 @@ export const useFieldStore = create<FieldState>((set, get) => ({
         return
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('fields')
         .update(fieldData)
         .eq('id', id)
+        .select('*, farmer:farmers(*)')
+        .single()
 
       if (error) throw error
 
       set((state) => ({
         fields: state.fields.map((f) =>
-          f.id === id ? { ...f, ...fieldData } : f
+          f.id === id ? data : f
         ),
-        selectedField: state.selectedField?.id === id
-          ? { ...state.selectedField, ...fieldData }
-          : state.selectedField,
+        selectedField: state.selectedField?.id === id ? data : state.selectedField,
         isLoading: false,
       }))
     } catch (error) {
@@ -368,7 +371,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   deleteField: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         set((state) => ({
@@ -397,7 +400,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   createFarmer: async (farmerData) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
+      const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
         const newFarmer: Farmer = {
