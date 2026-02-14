@@ -319,3 +319,44 @@ export interface ChatChannelWithDetails extends ChatChannel {
   work_type?: WorkType
   unread_count?: number
 }
+
+// 圃場×工種ごとの面積
+export interface FieldWorkArea {
+  id: string
+  field_id: string
+  work_type_id: string
+  area_hectares: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// 作付けマスタ
+export interface CropType {
+  id: string
+  name: string
+  display_order: number
+  is_default: boolean
+  created_at: string
+}
+
+// 圃場の作付け
+export interface FieldCrop {
+  id: string
+  field_id: string
+  crop_type_id: string
+  fiscal_year: number | null
+  area_hectares: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// 結合型
+export interface FieldWorkAreaWithWorkType extends FieldWorkArea {
+  work_type: WorkType
+}
+
+export interface FieldCropWithCropType extends FieldCrop {
+  crop_type: CropType
+}

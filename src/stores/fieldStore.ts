@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
-import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType } from '@/types/database'
+import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType, FieldWorkArea, FieldWorkAreaWithWorkType, CropType, FieldCrop, FieldCropWithCropType } from '@/types/database'
 
 // デモモードの判定（環境変数が設定されていない場合はデモモード）
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
@@ -160,11 +160,29 @@ const createMockProjectFields = (): ProjectFieldWithDetails[] => {
   })) as ProjectFieldWithDetails[]
 }
 
+// デモ用の作付けマスタ
+const mockCropTypes: CropType[] = [
+  { id: 'crop-1', name: '秋麦', display_order: 1, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-2', name: '春麦', display_order: 2, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-3', name: 'ビート', display_order: 3, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-4', name: 'いも', display_order: 4, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-5', name: '小豆', display_order: 5, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-6', name: '大豆', display_order: 6, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-7', name: 'ビール麦', display_order: 7, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-8', name: 'にんじん', display_order: 8, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-9', name: '玉ねぎ', display_order: 9, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-10', name: 'デントコーン', display_order: 10, is_default: true, created_at: new Date().toISOString() },
+  { id: 'crop-11', name: '牧草', display_order: 11, is_default: true, created_at: new Date().toISOString() },
+]
+
 interface FieldState {
   fields: FieldWithFarmer[]
   farmers: Farmer[]
   projectFields: ProjectFieldWithDetails[]
   workTypes: WorkType[]
+  cropTypes: CropType[]
+  fieldWorkAreas: FieldWorkAreaWithWorkType[]
+  fieldCrops: FieldCropWithCropType[]
   selectedField: FieldWithFarmer | null
   isLoading: boolean
   error: string | null
@@ -179,6 +197,19 @@ interface FieldState {
   updateFieldPolygon: (id: string, polygon: Field['area_polygon']) => Promise<void>
   deleteField: (id: string) => Promise<void>
   createFarmer: (farmer: Omit<Farmer, 'id' | 'created_at'>) => Promise<Farmer>
+  // 工種面積
+  fetchFieldWorkAreas: (fieldId: string) => Promise<void>
+  createFieldWorkArea: (data: Omit<FieldWorkArea, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldWorkArea>
+  updateFieldWorkArea: (id: string, data: Partial<FieldWorkArea>) => Promise<void>
+  deleteFieldWorkArea: (id: string) => Promise<void>
+  // 作付けマスタ
+  fetchCropTypes: () => Promise<void>
+  createCropType: (name: string) => Promise<CropType>
+  // 圃場作付け
+  fetchFieldCrops: (fieldId: string) => Promise<void>
+  createFieldCrop: (data: Omit<FieldCrop, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldCrop>
+  updateFieldCrop: (id: string, data: Partial<FieldCrop>) => Promise<void>
+  deleteFieldCrop: (id: string) => Promise<void>
 }
 
 export const useFieldStore = create<FieldState>((set, get) => ({
@@ -186,6 +217,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   farmers: [],
   projectFields: [],
   workTypes: mockWorkTypes,
+  cropTypes: mockCropTypes,
+  fieldWorkAreas: [],
+  fieldCrops: [],
   selectedField: null,
   isLoading: false,
   error: null,
@@ -460,6 +494,349 @@ export const useFieldStore = create<FieldState>((set, get) => ({
         isLoading: false,
       }))
       return data
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種面積を取得
+  fetchFieldWorkAreas: async (fieldId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set({ fieldWorkAreas: [], isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('field_work_areas')
+        .select('*, work_type:work_types(*)')
+        .eq('field_id', fieldId)
+        .order('created_at')
+
+      if (error) throw error
+      set({ fieldWorkAreas: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
+  // 工種面積を追加
+  createFieldWorkArea: async (data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        const workType = mockWorkTypes.find(wt => wt.id === data.work_type_id)
+        const newArea: FieldWorkAreaWithWorkType = {
+          id: `fwa-${Date.now()}`,
+          field_id: data.field_id,
+          work_type_id: data.work_type_id,
+          area_hectares: data.area_hectares,
+          notes: data.notes,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          work_type: workType!,
+        }
+        set((state) => ({
+          fieldWorkAreas: [...state.fieldWorkAreas, newArea],
+          isLoading: false,
+        }))
+        return newArea
+      }
+
+      const { data: result, error } = await supabase
+        .from('field_work_areas')
+        .insert({
+          field_id: data.field_id,
+          work_type_id: data.work_type_id,
+          area_hectares: data.area_hectares,
+          notes: data.notes,
+        })
+        .select('*, work_type:work_types(*)')
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldWorkAreas: [...state.fieldWorkAreas, result],
+        isLoading: false,
+      }))
+      return result
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種面積を更新
+  updateFieldWorkArea: async (id, data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          fieldWorkAreas: state.fieldWorkAreas.map((fwa) =>
+            fwa.id === id ? { ...fwa, ...data, updated_at: new Date().toISOString() } : fwa
+          ),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('field_work_areas')
+        .update(data)
+        .eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldWorkAreas: state.fieldWorkAreas.map((fwa) =>
+          fwa.id === id ? { ...fwa, ...data, updated_at: new Date().toISOString() } : fwa
+        ),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種面積を削除
+  deleteFieldWorkArea: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          fieldWorkAreas: state.fieldWorkAreas.filter((fwa) => fwa.id !== id),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase.from('field_work_areas').delete().eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldWorkAreas: state.fieldWorkAreas.filter((fwa) => fwa.id !== id),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 作付けマスタを取得
+  fetchCropTypes: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set({ cropTypes: mockCropTypes, isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('crop_types')
+        .select('*')
+        .order('display_order')
+
+      if (error) throw error
+      set({ cropTypes: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
+  // 作付けマスタを追加
+  createCropType: async (name) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+      const currentCropTypes = get().cropTypes
+      const maxOrder = currentCropTypes.reduce((max, ct) => Math.max(max, ct.display_order), 0)
+
+      if (useDemoMode) {
+        const newCropType: CropType = {
+          id: `crop-${Date.now()}`,
+          name,
+          display_order: maxOrder + 1,
+          is_default: false,
+          created_at: new Date().toISOString(),
+        }
+        set((state) => ({
+          cropTypes: [...state.cropTypes, newCropType],
+          isLoading: false,
+        }))
+        return newCropType
+      }
+
+      const { data, error } = await supabase
+        .from('crop_types')
+        .insert({
+          name,
+          display_order: maxOrder + 1,
+          is_default: false,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        cropTypes: [...state.cropTypes, data],
+        isLoading: false,
+      }))
+      return data
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 圃場作付けを取得
+  fetchFieldCrops: async (fieldId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set({ fieldCrops: [], isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('field_crops')
+        .select('*, crop_type:crop_types(*)')
+        .eq('field_id', fieldId)
+        .order('fiscal_year', { ascending: false })
+
+      if (error) throw error
+      set({ fieldCrops: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
+  // 圃場作付けを追加
+  createFieldCrop: async (data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        const cropType = get().cropTypes.find(ct => ct.id === data.crop_type_id)
+        const newFieldCrop: FieldCropWithCropType = {
+          id: `fc-${Date.now()}`,
+          field_id: data.field_id,
+          crop_type_id: data.crop_type_id,
+          fiscal_year: data.fiscal_year,
+          area_hectares: data.area_hectares,
+          notes: data.notes,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          crop_type: cropType!,
+        }
+        set((state) => ({
+          fieldCrops: [...state.fieldCrops, newFieldCrop],
+          isLoading: false,
+        }))
+        return newFieldCrop
+      }
+
+      const { data: result, error } = await supabase
+        .from('field_crops')
+        .insert({
+          field_id: data.field_id,
+          crop_type_id: data.crop_type_id,
+          fiscal_year: data.fiscal_year,
+          area_hectares: data.area_hectares,
+          notes: data.notes,
+        })
+        .select('*, crop_type:crop_types(*)')
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldCrops: [...state.fieldCrops, result],
+        isLoading: false,
+      }))
+      return result
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 圃場作付けを更新
+  updateFieldCrop: async (id, data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          fieldCrops: state.fieldCrops.map((fc) =>
+            fc.id === id ? { ...fc, ...data, updated_at: new Date().toISOString() } : fc
+          ),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('field_crops')
+        .update(data)
+        .eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldCrops: state.fieldCrops.map((fc) =>
+          fc.id === id ? { ...fc, ...data, updated_at: new Date().toISOString() } : fc
+        ),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 圃場作付けを削除
+  deleteFieldCrop: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          fieldCrops: state.fieldCrops.filter((fc) => fc.id !== id),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase.from('field_crops').delete().eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        fieldCrops: state.fieldCrops.filter((fc) => fc.id !== id),
+        isLoading: false,
+      }))
     } catch (error) {
       set({ error: (error as Error).message, isLoading: false })
       throw error

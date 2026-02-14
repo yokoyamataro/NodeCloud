@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Ruler, FileText, Pencil, Trash2, Save, X, User, Building2, Calendar, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import { ArrowLeft, MapPin, Ruler, FileText, Pencil, Trash2, Save, X, User, Building2, Calendar, CheckCircle2, Clock, AlertCircle, Plus, Wheat, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +31,7 @@ import { Progress } from '@/components/ui/progress'
 import { PolygonEditor } from '@/components/map/PolygonEditor'
 import { CoordinateInput } from '@/components/map/CoordinateInput'
 import { useFieldStore } from '@/stores/fieldStore'
-import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus } from '@/types/database'
+import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldCropWithCropType } from '@/types/database'
 
 const SOIL_TYPES = [
   '黒ボク土',
@@ -56,12 +56,26 @@ export function FieldDetailPage() {
   const {
     fields,
     projectFields,
+    workTypes,
+    cropTypes,
+    fieldWorkAreas,
+    fieldCrops,
     fetchFields,
     fetchProjectFields,
     updateField,
     updateFieldPolygon,
     deleteField,
     getFieldById,
+    fetchFieldWorkAreas,
+    createFieldWorkArea,
+    updateFieldWorkArea,
+    deleteFieldWorkArea,
+    fetchCropTypes,
+    createCropType,
+    fetchFieldCrops,
+    createFieldCrop,
+    updateFieldCrop,
+    deleteFieldCrop,
   } = useFieldStore()
 
   const [field, setField] = useState<FieldWithFarmer | null>(null)
@@ -76,10 +90,41 @@ export function FieldDetailPage() {
     notes: '',
   })
 
+  // 工種面積ダイアログの状態
+  const [isWorkAreaDialogOpen, setIsWorkAreaDialogOpen] = useState(false)
+  const [editingWorkArea, setEditingWorkArea] = useState<FieldWorkAreaWithWorkType | null>(null)
+  const [workAreaForm, setWorkAreaForm] = useState({
+    work_type_id: '',
+    area_hectares: 0,
+    notes: '',
+  })
+
+  // 作付けダイアログの状態
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false)
+  const [editingCrop, setEditingCrop] = useState<FieldCropWithCropType | null>(null)
+  const [cropForm, setCropForm] = useState({
+    crop_type_id: '',
+    fiscal_year: new Date().getFullYear(),
+    area_hectares: 0,
+    notes: '',
+  })
+
+  // 作付け追加ダイアログ
+  const [isNewCropTypeDialogOpen, setIsNewCropTypeDialogOpen] = useState(false)
+  const [newCropTypeName, setNewCropTypeName] = useState('')
+
   useEffect(() => {
     fetchFields()
     fetchProjectFields('project-1')
-  }, [fetchFields, fetchProjectFields])
+    fetchCropTypes()
+  }, [fetchFields, fetchProjectFields, fetchCropTypes])
+
+  useEffect(() => {
+    if (fieldId) {
+      fetchFieldWorkAreas(fieldId)
+      fetchFieldCrops(fieldId)
+    }
+  }, [fieldId, fetchFieldWorkAreas, fetchFieldCrops])
 
   useEffect(() => {
     if (fieldId && fields.length > 0) {
@@ -143,6 +188,127 @@ export function FieldDetailPage() {
       console.error('Failed to delete field:', error)
     }
   }
+
+  // 工種面積ハンドラー
+  const handleOpenWorkAreaDialog = (workArea?: FieldWorkAreaWithWorkType) => {
+    if (workArea) {
+      setEditingWorkArea(workArea)
+      setWorkAreaForm({
+        work_type_id: workArea.work_type_id,
+        area_hectares: workArea.area_hectares,
+        notes: workArea.notes || '',
+      })
+    } else {
+      setEditingWorkArea(null)
+      setWorkAreaForm({
+        work_type_id: '',
+        area_hectares: 0,
+        notes: '',
+      })
+    }
+    setIsWorkAreaDialogOpen(true)
+  }
+
+  const handleSaveWorkArea = async () => {
+    if (!field) return
+    try {
+      if (editingWorkArea) {
+        await updateFieldWorkArea(editingWorkArea.id, {
+          area_hectares: workAreaForm.area_hectares,
+          notes: workAreaForm.notes || null,
+        })
+      } else {
+        await createFieldWorkArea({
+          field_id: field.id,
+          work_type_id: workAreaForm.work_type_id,
+          area_hectares: workAreaForm.area_hectares,
+          notes: workAreaForm.notes || null,
+        })
+      }
+      setIsWorkAreaDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to save work area:', error)
+    }
+  }
+
+  const handleDeleteWorkArea = async (id: string) => {
+    try {
+      await deleteFieldWorkArea(id)
+    } catch (error) {
+      console.error('Failed to delete work area:', error)
+    }
+  }
+
+  // 作付けハンドラー
+  const handleOpenCropDialog = (crop?: FieldCropWithCropType) => {
+    if (crop) {
+      setEditingCrop(crop)
+      setCropForm({
+        crop_type_id: crop.crop_type_id,
+        fiscal_year: crop.fiscal_year || new Date().getFullYear(),
+        area_hectares: crop.area_hectares || 0,
+        notes: crop.notes || '',
+      })
+    } else {
+      setEditingCrop(null)
+      setCropForm({
+        crop_type_id: '',
+        fiscal_year: new Date().getFullYear(),
+        area_hectares: 0,
+        notes: '',
+      })
+    }
+    setIsCropDialogOpen(true)
+  }
+
+  const handleSaveCrop = async () => {
+    if (!field) return
+    try {
+      if (editingCrop) {
+        await updateFieldCrop(editingCrop.id, {
+          fiscal_year: cropForm.fiscal_year || null,
+          area_hectares: cropForm.area_hectares || null,
+          notes: cropForm.notes || null,
+        })
+      } else {
+        await createFieldCrop({
+          field_id: field.id,
+          crop_type_id: cropForm.crop_type_id,
+          fiscal_year: cropForm.fiscal_year || null,
+          area_hectares: cropForm.area_hectares || null,
+          notes: cropForm.notes || null,
+        })
+      }
+      setIsCropDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to save crop:', error)
+    }
+  }
+
+  const handleDeleteCrop = async (id: string) => {
+    try {
+      await deleteFieldCrop(id)
+    } catch (error) {
+      console.error('Failed to delete crop:', error)
+    }
+  }
+
+  // 作付けマスタ追加ハンドラー
+  const handleAddNewCropType = async () => {
+    if (!newCropTypeName.trim()) return
+    try {
+      await createCropType(newCropTypeName.trim())
+      setNewCropTypeName('')
+      setIsNewCropTypeDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to create crop type:', error)
+    }
+  }
+
+  // 既に登録されている工種を除いた工種リスト
+  const availableWorkTypes = workTypes.filter(
+    wt => !fieldWorkAreas.some(fwa => fwa.work_type_id === wt.id)
+  )
 
   if (!field) {
     return (
@@ -284,6 +450,145 @@ export function FieldDetailPage() {
                     </div>
                   )}
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 工種別面積 */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  工種別面積
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenWorkAreaDialog()}
+                  disabled={availableWorkTypes.length === 0}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  追加
+                </Button>
+              </div>
+              <CardDescription>
+                各工種の施工面積を管理します
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fieldWorkAreas.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  工種が登録されていません
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {fieldWorkAreas.map((fwa) => (
+                    <div
+                      key={fwa.id}
+                      className="flex items-center justify-between p-2 rounded-md bg-gray-50 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded"
+                          style={{ backgroundColor: fwa.work_type.color || '#9CA3AF' }}
+                        />
+                        <span className="text-sm font-medium">{fwa.work_type.name}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {fwa.area_hectares} ha
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenWorkAreaDialog(fwa)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteWorkArea(fwa.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 作付け */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wheat className="h-4 w-4" />
+                  作付け
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenCropDialog()}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  追加
+                </Button>
+              </div>
+              <CardDescription>
+                作付け情報を管理します
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fieldCrops.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  作付けが登録されていません
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {fieldCrops.map((fc) => (
+                    <div
+                      key={fc.id}
+                      className="flex items-center justify-between p-2 rounded-md bg-gray-50 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wheat className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-medium">{fc.crop_type.name}</span>
+                        {fc.fiscal_year && (
+                          <Badge variant="outline" className="text-xs">
+                            {fc.fiscal_year}年度
+                          </Badge>
+                        )}
+                        {fc.area_hectares && (
+                          <span className="text-sm text-muted-foreground">
+                            {fc.area_hectares} ha
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenCropDialog(fc)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteCrop(fc.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -480,6 +785,212 @@ export function FieldDetailPage() {
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               削除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 工種面積ダイアログ */}
+      <Dialog open={isWorkAreaDialogOpen} onOpenChange={setIsWorkAreaDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingWorkArea ? '工種面積を編集' : '工種面積を追加'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="work_type">工種</Label>
+              {editingWorkArea ? (
+                <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
+                  <div
+                    className="w-3 h-3 rounded"
+                    style={{ backgroundColor: editingWorkArea.work_type.color || '#9CA3AF' }}
+                  />
+                  <span>{editingWorkArea.work_type.name}</span>
+                </div>
+              ) : (
+                <Select
+                  value={workAreaForm.work_type_id}
+                  onValueChange={(v) => setWorkAreaForm({ ...workAreaForm, work_type_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="工種を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableWorkTypes.map((wt) => (
+                      <SelectItem key={wt.id} value={wt.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded"
+                            style={{ backgroundColor: wt.color || '#9CA3AF' }}
+                          />
+                          {wt.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="work_area_hectares">面積 (ha)</Label>
+              <Input
+                id="work_area_hectares"
+                type="number"
+                step="0.01"
+                min={0}
+                value={workAreaForm.area_hectares}
+                onChange={(e) =>
+                  setWorkAreaForm({ ...workAreaForm, area_hectares: parseFloat(e.target.value) || 0 })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="work_area_notes">備考</Label>
+              <Textarea
+                id="work_area_notes"
+                value={workAreaForm.notes}
+                onChange={(e) => setWorkAreaForm({ ...workAreaForm, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsWorkAreaDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSaveWorkArea}
+              disabled={!editingWorkArea && !workAreaForm.work_type_id}
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 作付けダイアログ */}
+      <Dialog open={isCropDialogOpen} onOpenChange={setIsCropDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCrop ? '作付けを編集' : '作付けを追加'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="crop_type">作付け種類</Label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => setIsNewCropTypeDialogOpen(true)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  新規追加
+                </Button>
+              </div>
+              {editingCrop ? (
+                <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
+                  <Wheat className="h-4 w-4 text-amber-600" />
+                  <span>{editingCrop.crop_type.name}</span>
+                </div>
+              ) : (
+                <Select
+                  value={cropForm.crop_type_id}
+                  onValueChange={(v) => setCropForm({ ...cropForm, crop_type_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="作付け種類を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cropTypes.map((ct) => (
+                      <SelectItem key={ct.id} value={ct.id}>
+                        {ct.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="crop_fiscal_year">年度</Label>
+                <Input
+                  id="crop_fiscal_year"
+                  type="number"
+                  value={cropForm.fiscal_year}
+                  onChange={(e) =>
+                    setCropForm({ ...cropForm, fiscal_year: parseInt(e.target.value) || new Date().getFullYear() })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="crop_area_hectares">面積 (ha)</Label>
+                <Input
+                  id="crop_area_hectares"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={cropForm.area_hectares}
+                  onChange={(e) =>
+                    setCropForm({ ...cropForm, area_hectares: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="crop_notes">備考</Label>
+              <Textarea
+                id="crop_notes"
+                value={cropForm.notes}
+                onChange={(e) => setCropForm({ ...cropForm, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCropDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSaveCrop}
+              disabled={!editingCrop && !cropForm.crop_type_id}
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 作付け種類追加ダイアログ */}
+      <Dialog open={isNewCropTypeDialogOpen} onOpenChange={setIsNewCropTypeDialogOpen}>
+        <DialogContent className="sm:max-w-[300px]">
+          <DialogHeader>
+            <DialogTitle>作付け種類を追加</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new_crop_type_name">種類名</Label>
+              <Input
+                id="new_crop_type_name"
+                value={newCropTypeName}
+                onChange={(e) => setNewCropTypeName(e.target.value)}
+                placeholder="例: そば"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewCropTypeDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleAddNewCropType}
+              disabled={!newCropTypeName.trim()}
+            >
+              追加
             </Button>
           </DialogFooter>
         </DialogContent>
