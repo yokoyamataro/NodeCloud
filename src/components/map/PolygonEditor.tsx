@@ -31,20 +31,36 @@ export function PolygonEditor({
   )
   const [isDrawing, setIsDrawing] = useState(false)
   const [noToken, setNoToken] = useState(false)
+
+  // 現在のポリゴンをrefで保持（useCallback内で最新の値を参照するため）
+  const currentPolygonRef = useRef(currentPolygon)
   const initialPolygonRef = useRef(initialPolygon)
   const readOnlyRef = useRef(readOnly)
-  const drawEventsAttached = useRef(false)
+
+  // refを最新の状態に更新
+  useEffect(() => {
+    currentPolygonRef.current = currentPolygon
+  }, [currentPolygon])
+
+  useEffect(() => {
+    initialPolygonRef.current = initialPolygon
+  }, [initialPolygon])
+
+  useEffect(() => {
+    readOnlyRef.current = readOnly
+  }, [readOnly])
 
   // 初期ポリゴンからMapboxの中心を計算
   const getInitialCenter = useCallback((): [number, number] => {
-    if (initialPolygon && initialPolygon.coordinates[0]) {
-      const coords = initialPolygon.coordinates[0]
+    const polygon = initialPolygonRef.current
+    if (polygon && polygon.coordinates[0]) {
+      const coords = polygon.coordinates[0]
       const lngSum = coords.reduce((sum, c) => sum + (c[0] || 0), 0)
       const latSum = coords.reduce((sum, c) => sum + (c[1] || 0), 0)
       return [lngSum / coords.length, latSum / coords.length]
     }
     return HOKKAIDO_CENTER
-  }, [initialPolygon])
+  }, [])
 
   // ポリゴンをDrawに追加する関数
   const addPolygonToDraw = useCallback((polygon: GeoJSON.Polygon) => {
@@ -84,76 +100,15 @@ export function PolygonEditor({
     if (data.features.length > 0) {
       const feature = data.features[0]
       if (feature.geometry.type === 'Polygon') {
-        setCurrentPolygon(feature.geometry as GeoJSON.Polygon)
+        const newPolygon = feature.geometry as GeoJSON.Polygon
+        setCurrentPolygon(newPolygon)
+        currentPolygonRef.current = newPolygon
         setHasChanges(true)
       }
     }
   }, [])
 
-  // Drawコントロールを設定する関数
-  const setupDrawControl = useCallback((isReadOnly: boolean) => {
-    if (!map.current) return
-
-    // 既存のDrawコントロールを削除
-    if (draw.current) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.current.removeControl(draw.current as any)
-      } catch {
-        // 既に削除されている場合は無視
-      }
-      draw.current = null
-    }
-
-    // 新しいDrawコントロールを作成
-    draw.current = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: isReadOnly ? {} : {
-        polygon: true,
-        trash: true,
-      },
-      defaultMode: 'simple_select',
-    })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.current.addControl(draw.current as any, 'top-left')
-
-    // イベントリスナーは一度だけ追加（readOnlyでない場合のみ有効）
-    if (!drawEventsAttached.current) {
-      map.current.on('draw.create', () => {
-        if (!readOnlyRef.current) {
-          updatePolygonFromDraw()
-        }
-      })
-      map.current.on('draw.update', () => {
-        if (!readOnlyRef.current) {
-          updatePolygonFromDraw()
-        }
-      })
-      map.current.on('draw.delete', () => {
-        if (!readOnlyRef.current) {
-          setCurrentPolygon(null)
-          setHasChanges(true)
-        }
-      })
-      map.current.on('draw.modechange', (e: { mode: string }) => {
-        if (!readOnlyRef.current) {
-          setIsDrawing(e.mode === 'draw_polygon')
-        }
-      })
-      drawEventsAttached.current = true
-    }
-
-    // 現在のポリゴンを再描画
-    setTimeout(() => {
-      const polygonToShow = currentPolygon || initialPolygonRef.current
-      if (polygonToShow && draw.current) {
-        addPolygonToDraw(polygonToShow)
-      }
-    }, 50)
-  }, [addPolygonToDraw, currentPolygon, updatePolygonFromDraw])
-
-  // マップの初期化
+  // マップの初期化（一度だけ実行）
   useEffect(() => {
     if (!mapContainer.current) return
 
@@ -168,17 +123,49 @@ export function PolygonEditor({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: initialCenter,
-      zoom: initialPolygon ? 14 : DEFAULT_ZOOM,
+      zoom: initialPolygonRef.current ? 14 : DEFAULT_ZOOM,
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     map.current.addControl(new mapboxgl.ScaleControl(), 'bottom-left')
 
     map.current.on('load', () => {
-      // Drawコントロールを地図ロード後に追加
-      setupDrawControl(readOnlyRef.current)
+      // Drawコントロールを作成（常に追加、readOnlyの時はコントロールを非表示）
+      draw.current = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: readOnlyRef.current ? {} : {
+          polygon: true,
+          trash: true,
+        },
+        defaultMode: 'simple_select',
+      })
 
-      // 少し遅延させて初期ポリゴンを追加
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.current!.addControl(draw.current as any, 'top-left')
+
+      // イベントリスナーを追加
+      map.current!.on('draw.create', () => {
+        if (!readOnlyRef.current) {
+          updatePolygonFromDraw()
+        }
+      })
+      map.current!.on('draw.update', () => {
+        if (!readOnlyRef.current) {
+          updatePolygonFromDraw()
+        }
+      })
+      map.current!.on('draw.delete', () => {
+        if (!readOnlyRef.current) {
+          setCurrentPolygon(null)
+          currentPolygonRef.current = null
+          setHasChanges(true)
+        }
+      })
+      map.current!.on('draw.modechange', (e: { mode: string }) => {
+        setIsDrawing(e.mode === 'draw_polygon')
+      })
+
+      // 初期ポリゴンを描画
       setTimeout(() => {
         if (initialPolygonRef.current && draw.current) {
           addPolygonToDraw(initialPolygonRef.current)
@@ -188,25 +175,54 @@ export function PolygonEditor({
     })
 
     return () => {
-      drawEventsAttached.current = false
       map.current?.remove()
     }
-  }, [getInitialCenter, addPolygonToDraw, setupDrawControl])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 初期化は一度だけ
 
-  // readOnlyの変更を監視
+  // readOnlyの変更を監視してDrawコントロールを再設定
   useEffect(() => {
-    readOnlyRef.current = readOnly
-    if (mapLoaded && map.current) {
-      setupDrawControl(readOnly)
+    if (!mapLoaded || !map.current || !draw.current) return
+
+    // 既存のDrawコントロールを削除
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.current.removeControl(draw.current as any)
+    } catch {
+      // 無視
     }
-  }, [readOnly, mapLoaded, setupDrawControl])
 
-  // initialPolygonが変更された場合の処理
+    // 新しいDrawコントロールを作成
+    draw.current = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: readOnly ? {} : {
+        polygon: true,
+        trash: true,
+      },
+      defaultMode: 'simple_select',
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    map.current.addControl(draw.current as any, 'top-left')
+
+    // 現在のポリゴンを再描画
+    setTimeout(() => {
+      const polygonToShow = currentPolygonRef.current || initialPolygonRef.current
+      if (polygonToShow && draw.current) {
+        addPolygonToDraw(polygonToShow)
+      }
+    }, 50)
+  }, [readOnly, mapLoaded, addPolygonToDraw])
+
+  // initialPolygonが外部から変更された場合の処理
   useEffect(() => {
-    initialPolygonRef.current = initialPolygon
-    if (mapLoaded && initialPolygon && draw.current) {
+    if (!mapLoaded || !draw.current) return
+
+    if (initialPolygon) {
       addPolygonToDraw(initialPolygon)
       setCurrentPolygon(initialPolygon)
+      currentPolygonRef.current = initialPolygon
+      setHasChanges(false)
     }
   }, [initialPolygon, mapLoaded, addPolygonToDraw])
 
@@ -214,6 +230,7 @@ export function PolygonEditor({
     if (draw.current) {
       draw.current.deleteAll()
       setCurrentPolygon(null)
+      currentPolygonRef.current = null
       setHasChanges(true)
     }
   }
@@ -224,15 +241,18 @@ export function PolygonEditor({
       if (initialPolygonRef.current) {
         addPolygonToDraw(initialPolygonRef.current)
         setCurrentPolygon(initialPolygonRef.current)
+        currentPolygonRef.current = initialPolygonRef.current
       } else {
         setCurrentPolygon(null)
+        currentPolygonRef.current = null
       }
       setHasChanges(false)
     }
   }
 
   const handleSave = () => {
-    onSave(currentPolygon)
+    onSave(currentPolygonRef.current)
+    setHasChanges(false)
   }
 
   const startDrawing = () => {
