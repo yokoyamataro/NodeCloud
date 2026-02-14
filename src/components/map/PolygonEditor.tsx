@@ -31,6 +31,7 @@ export function PolygonEditor({
   )
   const [isDrawing, setIsDrawing] = useState(false)
   const [noToken, setNoToken] = useState(false)
+  const initialPolygonRef = useRef(initialPolygon)
 
   // 初期ポリゴンからMapboxの中心を計算
   const getInitialCenter = useCallback((): [number, number] => {
@@ -42,6 +43,36 @@ export function PolygonEditor({
     }
     return HOKKAIDO_CENTER
   }, [initialPolygon])
+
+  // ポリゴンをDrawに追加する関数
+  const addPolygonToDraw = useCallback((polygon: GeoJSON.Polygon) => {
+    if (!draw.current || !map.current) return
+
+    try {
+      // 既存のポリゴンを削除
+      draw.current.deleteAll()
+
+      // FeatureCollectionとして追加
+      const featureCollection: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: polygon,
+        }]
+      }
+      draw.current.set(featureCollection)
+
+      // ポリゴンにフィット
+      const bounds = new mapboxgl.LngLatBounds()
+      polygon.coordinates[0].forEach((coord) => {
+        bounds.extend(coord as [number, number])
+      })
+      map.current.fitBounds(bounds, { padding: 50 })
+    } catch (error) {
+      console.error('Failed to add polygon to draw:', error)
+    }
+  }, [])
 
   useEffect(() => {
     if (!mapContainer.current) return
@@ -60,61 +91,64 @@ export function PolygonEditor({
       zoom: initialPolygon ? 14 : DEFAULT_ZOOM,
     })
 
-    // Drawコントロールを追加
-    draw.current = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: readOnly ? {} : {
-        polygon: true,
-        trash: true,
-      },
-      defaultMode: 'simple_select',
-    })
-
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     map.current.addControl(new mapboxgl.ScaleControl(), 'bottom-left')
-    if (!readOnly) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.current.addControl(draw.current as any, 'top-left')
-    }
 
     map.current.on('load', () => {
-      setMapLoaded(true)
-
-      // 初期ポリゴンがあれば描画
-      if (initialPolygon && draw.current) {
-        const feature: GeoJSON.Feature<GeoJSON.Polygon> = {
-          id: 'initial-polygon',
-          type: 'Feature',
-          properties: {},
-          geometry: initialPolygon,
-        }
-        draw.current.add(feature)
-
-        // ポリゴンにフィット
-        const bounds = new mapboxgl.LngLatBounds()
-        initialPolygon.coordinates[0].forEach((coord) => {
-          bounds.extend(coord as [number, number])
-        })
-        map.current!.fitBounds(bounds, { padding: 50 })
-      }
-    })
-
-    // 描画イベントのリスナー
-    if (!readOnly) {
-      map.current.on('draw.create', updatePolygon)
-      map.current.on('draw.update', updatePolygon)
-      map.current.on('draw.delete', handleDelete)
-      map.current.on('draw.modechange', (e: { mode: string }) => {
-        setIsDrawing(e.mode === 'draw_polygon')
+      // Drawコントロールを地図ロード後に追加
+      draw.current = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: readOnly ? {} : {
+          polygon: true,
+          trash: true,
+        },
+        defaultMode: 'simple_select',
       })
-    }
+
+      if (!readOnly) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.current!.addControl(draw.current as any, 'top-left')
+
+        // 描画イベントのリスナー
+        map.current!.on('draw.create', () => {
+          updatePolygonFromDraw()
+        })
+        map.current!.on('draw.update', () => {
+          updatePolygonFromDraw()
+        })
+        map.current!.on('draw.delete', () => {
+          setCurrentPolygon(null)
+          setHasChanges(true)
+        })
+        map.current!.on('draw.modechange', (e: { mode: string }) => {
+          setIsDrawing(e.mode === 'draw_polygon')
+        })
+      }
+
+      // 少し遅延させて初期ポリゴンを追加
+      setTimeout(() => {
+        if (initialPolygonRef.current && draw.current) {
+          addPolygonToDraw(initialPolygonRef.current)
+        }
+        setMapLoaded(true)
+      }, 100)
+    })
 
     return () => {
       map.current?.remove()
     }
-  }, [initialPolygon, readOnly, getInitialCenter])
+  }, [readOnly, getInitialCenter, addPolygonToDraw])
 
-  const updatePolygon = useCallback(() => {
+  // initialPolygonが変更された場合の処理
+  useEffect(() => {
+    initialPolygonRef.current = initialPolygon
+    if (mapLoaded && initialPolygon && draw.current) {
+      addPolygonToDraw(initialPolygon)
+      setCurrentPolygon(initialPolygon)
+    }
+  }, [initialPolygon, mapLoaded, addPolygonToDraw])
+
+  const updatePolygonFromDraw = useCallback(() => {
     if (!draw.current) return
 
     const data = draw.current.getAll()
@@ -125,11 +159,6 @@ export function PolygonEditor({
         setHasChanges(true)
       }
     }
-  }, [])
-
-  const handleDelete = useCallback(() => {
-    setCurrentPolygon(null)
-    setHasChanges(true)
   }, [])
 
   const handleClear = () => {
@@ -143,15 +172,9 @@ export function PolygonEditor({
   const handleReset = () => {
     if (draw.current) {
       draw.current.deleteAll()
-      if (initialPolygon) {
-        const feature: GeoJSON.Feature<GeoJSON.Polygon> = {
-          id: 'initial-polygon',
-          type: 'Feature',
-          properties: {},
-          geometry: initialPolygon,
-        }
-        draw.current.add(feature)
-        setCurrentPolygon(initialPolygon)
+      if (initialPolygonRef.current) {
+        addPolygonToDraw(initialPolygonRef.current)
+        setCurrentPolygon(initialPolygonRef.current)
       } else {
         setCurrentPolygon(null)
       }
