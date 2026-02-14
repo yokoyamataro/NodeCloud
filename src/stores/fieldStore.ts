@@ -507,7 +507,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const useDemoMode = isDemoMode()
 
       if (useDemoMode) {
-        set({ fieldWorkAreas: [], isLoading: false })
+        // デモモードでは現在のfieldIdに一致するデータのみフィルタリング
+        const currentAreas = get().fieldWorkAreas.filter(fwa => fwa.field_id === fieldId)
+        set({ fieldWorkAreas: currentAreas, isLoading: false })
         return
       }
 
@@ -712,7 +714,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const useDemoMode = isDemoMode()
 
       if (useDemoMode) {
-        set({ fieldCrops: [], isLoading: false })
+        // デモモードでは現在のfieldIdに一致するデータのみフィルタリング
+        const currentCrops = get().fieldCrops.filter(fc => fc.field_id === fieldId)
+        set({ fieldCrops: currentCrops, isLoading: false })
         return
       }
 
