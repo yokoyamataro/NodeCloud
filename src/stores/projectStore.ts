@@ -2,40 +2,58 @@ import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import type { Project, ProjectFieldWithDetails, WorkType } from '@/types/database'
 
+// デモモードの判定
+const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
+
 // デモ用データ
 const demoProjects: Project[] = [
   {
-    id: 'project-1',
+    id: '00000000-0000-0000-0000-000000000001',
     name: '令和6年度 空知地区農地整備事業',
     description: '空知地区における暗渠排水・客土工事',
     area_polygon: null,
     status: 'active',
     start_date: '2024-04-01',
     end_date: '2024-11-30',
+    fiscal_year: 2024,
+    project_number: 'R6-001',
+    client_name: '北海道開発局',
+    contractor_name: '株式会社サンプル建設',
+    coordinate_system: 'EPSG:6677',
     created_by: 'demo-user-id',
     created_at: '2024-03-01T00:00:00Z',
     updated_at: '2024-03-01T00:00:00Z',
   },
   {
-    id: 'project-2',
+    id: '00000000-0000-0000-0000-000000000002',
     name: '令和6年度 十勝地区圃場整備事業',
     description: '十勝地区における圃場整備・明渠工事',
     area_polygon: null,
     status: 'planned',
     start_date: '2024-06-01',
     end_date: '2025-03-31',
+    fiscal_year: 2024,
+    project_number: 'R6-002',
+    client_name: '北海道開発局',
+    contractor_name: '株式会社サンプル建設',
+    coordinate_system: 'EPSG:6678',
     created_by: 'demo-user-id',
     created_at: '2024-03-15T00:00:00Z',
     updated_at: '2024-03-15T00:00:00Z',
   },
   {
-    id: 'project-3',
+    id: '00000000-0000-0000-0000-000000000003',
     name: '令和5年度 上川地区土壌改良事業',
     description: '上川地区における土壌改良・心土破砕工事',
     area_polygon: null,
     status: 'completed',
     start_date: '2023-05-01',
     end_date: '2023-12-15',
+    fiscal_year: 2023,
+    project_number: 'R5-001',
+    client_name: '旭川開発建設部',
+    contractor_name: '株式会社サンプル建設',
+    coordinate_system: 'EPSG:6677',
     created_by: 'demo-user-id',
     created_at: '2023-04-01T00:00:00Z',
     updated_at: '2023-12-15T00:00:00Z',
@@ -63,9 +81,12 @@ interface ProjectState {
   fetchProjectFields: (projectId: string) => Promise<void>
   fetchWorkTypes: () => Promise<void>
   setCurrentProject: (project: Project | null) => void
+  createProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => Promise<Project>
+  updateProject: (id: string, project: Partial<Project>) => Promise<void>
+  deleteProject: (id: string) => Promise<void>
 }
 
-export const useProjectStore = create<ProjectState>((set) => ({
+export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   currentProject: null,
   projectFields: [],
@@ -76,8 +97,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   fetchProjects: async () => {
     set({ isLoading: true, error: null })
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         set({ projects: demoProjects, isLoading: false })
         return
       }
@@ -85,6 +105,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const { data, error } = await supabase
         .from('projects')
         .select('*')
+        .order('fiscal_year', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -97,8 +118,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   fetchProject: async (id: string) => {
     set({ isLoading: true, error: null })
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         const project = demoProjects.find(p => p.id === id) || null
         set({ currentProject: project, isLoading: false })
         return
@@ -120,7 +140,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   fetchProjectFields: async (projectId: string) => {
     set({ isLoading: true, error: null })
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL) {
+      if (isDemoMode()) {
         // デモモード: モックデータ
         const mockFields: ProjectFieldWithDetails[] = [
           {
@@ -306,8 +326,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   fetchWorkTypes: async () => {
     set({ isLoading: true, error: null })
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         set({ workTypes: demoWorkTypes, isLoading: false })
         return
       }
@@ -326,5 +345,116 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setCurrentProject: (project: Project | null) => {
     set({ currentProject: project })
+  },
+
+  createProject: async (projectData) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        const newProject: Project = {
+          ...projectData,
+          id: `project-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+        set((state) => ({
+          projects: [...state.projects, newProject],
+          isLoading: false,
+        }))
+        return newProject
+      }
+
+      const { data, error } = await supabase
+        .from('projects')
+        .insert({
+          name: projectData.name,
+          description: projectData.description,
+          area_polygon: projectData.area_polygon,
+          status: projectData.status,
+          start_date: projectData.start_date,
+          end_date: projectData.end_date,
+          fiscal_year: projectData.fiscal_year,
+          project_number: projectData.project_number,
+          client_name: projectData.client_name,
+          contractor_name: projectData.contractor_name,
+          coordinate_system: projectData.coordinate_system,
+          created_by: projectData.created_by,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // 工事一覧を再取得
+      await get().fetchProjects()
+
+      return data
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  updateProject: async (id, projectData) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === id ? { ...p, ...projectData, updated_at: new Date().toISOString() } : p
+          ),
+          currentProject: state.currentProject?.id === id
+            ? { ...state.currentProject, ...projectData, updated_at: new Date().toISOString() }
+            : state.currentProject,
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('projects')
+        .update(projectData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === id ? data : p)),
+        currentProject: state.currentProject?.id === id ? data : state.currentProject,
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  deleteProject: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== id),
+          currentProject: state.currentProject?.id === id ? null : state.currentProject,
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase.from('projects').delete().eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        projects: state.projects.filter((p) => p.id !== id),
+        currentProject: state.currentProject?.id === id ? null : state.currentProject,
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
   },
 }))

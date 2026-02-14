@@ -45,6 +45,11 @@ export interface Database {
           status: ProjectStatus
           start_date: string | null
           end_date: string | null
+          fiscal_year: number | null
+          project_number: string | null
+          client_name: string | null
+          contractor_name: string | null
+          coordinate_system: string | null
           created_by: string | null
           created_at: string
           updated_at: string
