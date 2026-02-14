@@ -307,3 +307,4 @@ CREATE TRIGGER update_assignments_updated_at
 CREATE TRIGGER update_messages_updated_at
     BEFORE UPDATE ON chat_messages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+選択中の工事を
