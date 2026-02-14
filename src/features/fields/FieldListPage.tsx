@@ -138,10 +138,15 @@ export function FieldListPage() {
         },
         formData.farmer_id
       )
+
+      // 圃場一覧を再取得
+      await fetchFields()
+
       setIsDialogOpen(false)
       setFormData(initialFormData)
     } catch (error) {
       console.error('Failed to create field:', error)
+      alert('圃場の追加に失敗しました: ' + (error as Error).message)
     }
   }
 
