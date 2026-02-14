@@ -66,6 +66,7 @@ export function FieldDetailPage() {
     updateFieldPolygon,
     deleteField,
     getFieldById,
+    fetchWorkTypes,
     fetchFieldWorkAreas,
     createFieldWorkArea,
     updateFieldWorkArea,
@@ -116,8 +117,9 @@ export function FieldDetailPage() {
   useEffect(() => {
     fetchFields()
     fetchProjectFields('project-1')
+    fetchWorkTypes()
     fetchCropTypes()
-  }, [fetchFields, fetchProjectFields, fetchCropTypes])
+  }, [fetchFields, fetchProjectFields, fetchWorkTypes, fetchCropTypes])
 
   useEffect(() => {
     if (fieldId) {
@@ -675,6 +677,8 @@ export function FieldDetailPage() {
                     onCancel={() => setIsPolygonEditing(false)}
                     readOnly={!isPolygonEditing}
                     className="h-[500px]"
+                    otherFields={fields}
+                    currentFieldId={field.id}
                   />
                 </CardContent>
               </Card>

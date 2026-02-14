@@ -20,9 +20,11 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
 
   // データを取得
   useEffect(() => {
-    fetchFields()
     if (projectId) {
+      fetchFields(projectId)
       fetchProjectFields(projectId)
+    } else {
+      fetchFields()
     }
   }, [fetchFields, fetchProjectFields, projectId])
 

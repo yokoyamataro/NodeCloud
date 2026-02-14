@@ -197,6 +197,8 @@ interface FieldState {
   updateFieldPolygon: (id: string, polygon: Field['area_polygon']) => Promise<void>
   deleteField: (id: string) => Promise<void>
   createFarmer: (farmer: Omit<Farmer, 'id' | 'created_at'>) => Promise<Farmer>
+  // 工種マスタ
+  fetchWorkTypes: () => Promise<void>
   // 工種面積
   fetchFieldWorkAreas: (fieldId: string) => Promise<void>
   createFieldWorkArea: (data: Omit<FieldWorkArea, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldWorkArea>
@@ -216,8 +218,8 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   fields: [],
   farmers: [],
   projectFields: [],
-  workTypes: mockWorkTypes,
-  cropTypes: mockCropTypes,
+  workTypes: [],
+  cropTypes: [],
   fieldWorkAreas: [],
   fieldCrops: [],
   selectedField: null,
@@ -230,7 +232,13 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const useDemoMode = isDemoMode()
 
       if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
-        set({ fields: mockFields, isLoading: false })
+        // デモモードでもprojectIdでフィルタリング
+        if (projectId) {
+          const filteredFields = mockFields.filter(f => f.farmer.project_id === projectId)
+          set({ fields: filteredFields, isLoading: false })
+        } else {
+          set({ fields: mockFields, isLoading: false })
+        }
         return
       }
 
@@ -497,6 +505,29 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     } catch (error) {
       set({ error: (error as Error).message, isLoading: false })
       throw error
+    }
+  },
+
+  // 工種マスタを取得
+  fetchWorkTypes: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set({ workTypes: mockWorkTypes, isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('work_types')
+        .select('*')
+        .order('display_order')
+
+      if (error) throw error
+      set({ workTypes: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
     }
   },
 

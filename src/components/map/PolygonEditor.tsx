@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { mapboxgl, HOKKAIDO_CENTER, DEFAULT_ZOOM } from '@/lib/mapbox'
+import { mapboxgl, HOKKAIDO_CENTER, DEFAULT_ZOOM, getFieldPolygonColor } from '@/lib/mapbox'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
 import { Button } from '@/components/ui/button'
 import { Trash2, Map as MapIcon, Pencil, Save, RotateCcw } from 'lucide-react'
+import type { FieldWithFarmer } from '@/types/database'
 
 interface PolygonEditorProps {
   initialPolygon?: GeoJSON.Polygon | null
@@ -12,6 +13,10 @@ interface PolygonEditorProps {
   onCancel?: () => void
   className?: string
   readOnly?: boolean
+  /** 他の圃場ポリゴンを表示するための圃場リスト */
+  otherFields?: FieldWithFarmer[]
+  /** 現在編集中の圃場ID（他の圃場表示から除外するため） */
+  currentFieldId?: string
 }
 
 export function PolygonEditor({
@@ -20,6 +25,8 @@ export function PolygonEditor({
   onCancel,
   className = '',
   readOnly = false,
+  otherFields = [],
+  currentFieldId,
 }: PolygonEditorProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
@@ -179,6 +186,144 @@ export function PolygonEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 初期化は一度だけ
+
+  // 他の圃場ポリゴンを表示
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return
+
+    // 現在編集中の圃場以外でポリゴンがある圃場をフィルタリング
+    const fieldsToShow = otherFields.filter(
+      (f) => f.id !== currentFieldId && f.area_polygon
+    )
+
+    // 既存のレイヤーとソースを削除
+    otherFields.forEach((field) => {
+      const sourceId = `other-field-${field.id}`
+      const layerId = `other-field-fill-${field.id}`
+      const outlineId = `other-field-outline-${field.id}`
+      const labelId = `other-field-label-${field.id}`
+
+      if (map.current!.getLayer(labelId)) {
+        map.current!.removeLayer(labelId)
+      }
+      if (map.current!.getLayer(layerId)) {
+        map.current!.removeLayer(layerId)
+      }
+      if (map.current!.getLayer(outlineId)) {
+        map.current!.removeLayer(outlineId)
+      }
+      if (map.current!.getSource(sourceId)) {
+        map.current!.removeSource(sourceId)
+      }
+    })
+
+    // 他の圃場ポリゴンを追加
+    fieldsToShow.forEach((field) => {
+      if (!field.area_polygon) return
+
+      const polygon = field.area_polygon as { type: string; coordinates: number[][][] }
+      if (!polygon.coordinates || polygon.coordinates.length === 0) return
+
+      const label = `${field.farmer.farmer_number}-${field.field_number}`
+      const sourceId = `other-field-${field.id}`
+      const layerId = `other-field-fill-${field.id}`
+      const outlineId = `other-field-outline-${field.id}`
+      const labelId = `other-field-label-${field.id}`
+
+      // ポリゴンの中心を計算
+      const center = polygon.coordinates[0].reduce(
+        (acc, coord) => [
+          acc[0] + coord[0] / polygon.coordinates[0].length,
+          acc[1] + coord[1] / polygon.coordinates[0].length,
+        ],
+        [0, 0]
+      )
+
+      map.current!.addSource(sourceId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {
+            id: field.id,
+            label: label,
+            farmerName: field.farmer.name,
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: polygon.coordinates,
+          },
+        },
+      })
+
+      // 塗りつぶし（他の圃場は薄いグレー）
+      map.current!.addLayer({
+        id: layerId,
+        type: 'fill',
+        source: sourceId,
+        paint: {
+          'fill-color': getFieldPolygonColor(50),
+          'fill-opacity': 0.3,
+        },
+      })
+
+      // アウトライン
+      map.current!.addLayer({
+        id: outlineId,
+        type: 'line',
+        source: sourceId,
+        paint: {
+          'line-color': '#6B7280',
+          'line-width': 1.5,
+          'line-dasharray': [2, 2],
+        },
+      })
+
+      // ラベル用のポイントソース
+      map.current!.addSource(`${sourceId}-label`, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: { label },
+          geometry: {
+            type: 'Point',
+            coordinates: center,
+          },
+        },
+      })
+
+      // ラベル
+      map.current!.addLayer({
+        id: labelId,
+        type: 'symbol',
+        source: `${sourceId}-label`,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 12,
+          'text-anchor': 'center',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#374151',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+        },
+      })
+    })
+
+    // 全ての圃場にフィットするようにズーム（初期ポリゴンがない場合のみ）
+    if (!initialPolygonRef.current && fieldsToShow.length > 0) {
+      const bounds = new mapboxgl.LngLatBounds()
+      fieldsToShow.forEach((field) => {
+        const polygon = field.area_polygon as { type: string; coordinates: number[][][] }
+        if (polygon.coordinates && polygon.coordinates[0]) {
+          polygon.coordinates[0].forEach((coord) => {
+            bounds.extend(coord as [number, number])
+          })
+        }
+      })
+      map.current!.fitBounds(bounds, { padding: 50 })
+    }
+  }, [otherFields, currentFieldId, mapLoaded])
 
   // readOnlyの変更を監視してDrawコントロールを再設定
   useEffect(() => {
