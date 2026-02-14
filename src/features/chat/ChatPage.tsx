@@ -1,51 +1,35 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Plus, MessageSquare } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { Plus, MessageSquare, Building2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ChannelList } from '@/components/chat/ChannelList'
 import { ChatWindow } from '@/components/chat/ChatWindow'
 import { useChatStore } from '@/stores/chatStore'
-import { useProjectStore } from '@/stores/projectStore'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
 export function ChatPage() {
-  const [searchParams] = useSearchParams()
-  const projectId = searchParams.get('project')
-
   const { projects, fetchProjects } = useProjectStore()
+  const { selectedProjectId } = useSelectedProjectStore()
   const { channels, currentChannel, fetchChannels, setCurrentChannel } = useChatStore()
-
-  const [selectedProject, setSelectedProject] = useState<string>(projectId || '')
+  const prevProjectIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
 
   useEffect(() => {
-    if (projectId) {
-      setSelectedProject(projectId)
-    } else if (projects.length > 0 && !selectedProject) {
-      setSelectedProject(projects[0].id)
+    if (selectedProjectId) {
+      fetchChannels(selectedProjectId)
     }
-  }, [projectId, projects, selectedProject])
-
-  useEffect(() => {
-    if (selectedProject) {
-      fetchChannels(selectedProject)
-    }
-  }, [selectedProject, fetchChannels])
+  }, [selectedProjectId, fetchChannels])
 
   // プロジェクトが変わったらチャンネル選択をリセット
   useEffect(() => {
-    setCurrentChannel(null)
-  }, [selectedProject, setCurrentChannel])
+    if (prevProjectIdRef.current !== selectedProjectId) {
+      setCurrentChannel(null)
+      prevProjectIdRef.current = selectedProjectId
+    }
+  }, [selectedProjectId, setCurrentChannel])
 
   // 最初のチャンネルを自動選択
   useEffect(() => {
@@ -54,26 +38,38 @@ export function ChatPage() {
     }
   }, [channels, currentChannel, setCurrentChannel])
 
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
+
+  // 工事が選択されていない場合
+  if (!selectedProjectId || !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">チャット</h1>
+          <p className="text-muted-foreground">工事担当者間でメッセージをやり取りできます</p>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
+          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">工事を選択してください</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ヘッダーから工事を選択すると、その工事のチャットが表示されます
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-[calc(100vh-8rem)]">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">チャット</h1>
-          <p className="text-muted-foreground">工事担当者間でメッセージをやり取りできます</p>
+          <p className="text-muted-foreground">
+            {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+            {selectedProject.name}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={selectedProject} onValueChange={setSelectedProject}>
-            <SelectTrigger className="w-[250px]">
-              <SelectValue placeholder="工事を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             チャンネル作成

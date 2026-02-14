@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { Plus, FileText, Cloud, Sun, CloudRain } from 'lucide-react'
+import { Plus, FileText, Cloud, Sun, CloudRain, Building2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
 // デモ用日報データ
 const demoReports = [
@@ -74,9 +75,18 @@ const weatherIcons: Record<string, React.ComponentType<{ className?: string }>> 
 }
 
 export function ReportsPage() {
+  const { projects, fetchProjects } = useProjectStore()
+  const { selectedProjectId } = useSelectedProjectStore()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [filterDate, setFilterDate] = useState('')
 
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
+
+  // TODO: 実際は選択中の工事の日報をフィルタリング
   const filteredReports = filterDate
     ? demoReports.filter(r => r.report_date === filterDate)
     : demoReports
@@ -91,12 +101,34 @@ export function ReportsPage() {
     return groups
   }, {} as Record<string, typeof demoReports>)
 
+  // 工事が選択されていない場合
+  if (!selectedProjectId || !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">日報</h1>
+          <p className="text-muted-foreground">作業日報の入力・確認ができます</p>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
+          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">工事を選択してください</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ヘッダーから工事を選択すると、その工事の日報が表示されます
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">日報</h1>
-          <p className="text-muted-foreground">作業日報の入力・確認ができます</p>
+          <p className="text-muted-foreground">
+            {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+            {selectedProject.name}
+          </p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>

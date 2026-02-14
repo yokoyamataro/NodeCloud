@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, MapPin, Ruler, User, ChevronRight, Map, UserPlus } from 'lucide-react'
+import { Plus, Search, MapPin, Ruler, User, ChevronRight, Map, UserPlus, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,7 +23,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFieldStore } from '@/stores/fieldStore'
-import { useProjectStore } from '@/stores/projectStore'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 import type { FieldWithFarmer } from '@/types/database'
 
 const SOIL_TYPES = [
@@ -88,6 +88,7 @@ export function FieldListPage() {
     createFarmer,
   } = useFieldStore()
   const { projects, fetchProjects } = useProjectStore()
+  const { selectedProjectId } = useSelectedProjectStore()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterFarmer, setFilterFarmer] = useState<string>('all')
@@ -98,11 +99,16 @@ export function FieldListPage() {
   const [farmerFormData, setFarmerFormData] = useState<FarmerFormData>(initialFarmerFormData)
 
   useEffect(() => {
-    fetchFields()
-    fetchFarmers()
     fetchProjects()
-    fetchProjectFields('project-1')
-  }, [fetchFields, fetchFarmers, fetchProjects, fetchProjectFields])
+  }, [fetchProjects])
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchFields(selectedProjectId)
+      fetchFarmers(selectedProjectId)
+      fetchProjectFields(selectedProjectId)
+    }
+  }, [selectedProjectId, fetchFields, fetchFarmers, fetchProjectFields])
 
   const filteredFields = fields.filter((field) => {
     const matchesSearch =
@@ -191,12 +197,13 @@ export function FieldListPage() {
     }
   }
 
-  // 農家追加ダイアログを開く際に次の番号を設定
+  // 農家追加ダイアログを開く際に次の番号と選択中の工事を設定
   const openFarmerDialog = () => {
     const maxNumber = farmers.reduce((max, f) => Math.max(max, f.farmer_number), 0)
     setFarmerFormData({
       ...initialFarmerFormData,
       farmer_number: maxNumber + 1,
+      project_id: selectedProjectId || '',
     })
     setIsFarmerDialogOpen(true)
   }
@@ -212,6 +219,30 @@ export function FieldListPage() {
   const fieldsWithPolygon = fields.filter((f) => f.area_polygon).length
   const fieldsWithoutPolygon = fields.filter((f) => !f.area_polygon).length
 
+  // 選択中の工事を取得
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
+
+  // 工事が選択されていない場合
+  if (!selectedProjectId || !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">圃場一覧</h1>
+          <p className="text-muted-foreground">
+            登録されている圃場の情報を管理します
+          </p>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
+          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">工事を選択してください</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ヘッダーから工事を選択すると、その工事の圃場が表示されます
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
@@ -219,7 +250,8 @@ export function FieldListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">圃場一覧</h1>
           <p className="text-muted-foreground">
-            登録されている圃場の情報を管理します
+            {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+            {selectedProject.name} の圃場を管理します
           </p>
         </div>
         <div className="flex gap-2">

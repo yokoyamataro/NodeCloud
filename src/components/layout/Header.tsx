@@ -1,4 +1,5 @@
-import { Bell, Menu, Search } from 'lucide-react'
+import { useEffect } from 'react'
+import { Bell, Menu, Search, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -10,7 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuthStore } from '@/stores/authStore'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
 interface HeaderProps {
   onMenuClick?: () => void
@@ -18,6 +27,25 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, signOut } = useAuthStore()
+  const { projects, fetchProjects } = useProjectStore()
+  const { selectedProjectId, setSelectedProjectId } = useSelectedProjectStore()
+
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
+
+  // 選択中の工事が存在しない場合、最初の工事を選択
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id)
+    }
+    // 選択中の工事が削除された場合、選択をクリア
+    if (selectedProjectId && projects.length > 0 && !projects.find(p => p.id === selectedProjectId)) {
+      setSelectedProjectId(projects[0].id)
+    }
+  }, [projects, selectedProjectId, setSelectedProjectId])
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
@@ -30,6 +58,40 @@ export function Header({ onMenuClick }: HeaderProps) {
         <Menu className="h-6 w-6" />
         <span className="sr-only">メニューを開く</span>
       </Button>
+
+      {/* 工事選択 */}
+      <div className="flex items-center gap-2 min-w-0">
+        <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
+        {projects.length > 0 ? (
+          <Select
+            value={selectedProjectId || undefined}
+            onValueChange={setSelectedProjectId}
+          >
+            <SelectTrigger className="w-[200px] sm:w-[280px] lg:w-[350px] border-none bg-gray-100 hover:bg-gray-200">
+              <SelectValue placeholder="工事を選択">
+                {selectedProject && (
+                  <span className="truncate">
+                    {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+                    {selectedProject.name}
+                  </span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  <span className="truncate">
+                    {project.fiscal_year && `${project.fiscal_year}年度 `}
+                    {project.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm text-muted-foreground">工事が登録されていません</span>
+        )}
+      </div>
 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
         <form className="relative flex flex-1" action="#" method="GET">

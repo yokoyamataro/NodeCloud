@@ -1,9 +1,28 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import type { Project, ProjectFieldWithDetails, WorkType } from '@/types/database'
 
 // デモモードの判定
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
+
+// 選択中の工事IDを管理するストア（永続化）
+interface SelectedProjectState {
+  selectedProjectId: string | null
+  setSelectedProjectId: (id: string | null) => void
+}
+
+export const useSelectedProjectStore = create<SelectedProjectState>()(
+  persist(
+    (set) => ({
+      selectedProjectId: null,
+      setSelectedProjectId: (id) => set({ selectedProjectId: id }),
+    }),
+    {
+      name: 'selected-project',
+    }
+  )
+)
 
 // デモ用データ（空配列 - サンプル工事は削除済み）
 const demoProjects: Project[] = []

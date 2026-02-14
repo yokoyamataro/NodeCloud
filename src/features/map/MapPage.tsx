@@ -1,16 +1,53 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Layers, Maximize2 } from 'lucide-react'
+import { Layers, Maximize2, Building2 } from 'lucide-react'
 import { MapView } from '@/components/map/MapView'
 import { getStatusColor, getStatusLabel } from '@/lib/utils'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
+import { useFieldStore } from '@/stores/fieldStore'
 
 export function MapPage() {
   const [selectedField, setSelectedField] = useState<string | null>(null)
+  const { projects, fetchProjects } = useProjectStore()
+  const { selectedProjectId } = useSelectedProjectStore()
+  const { fields, fetchFields } = useFieldStore()
+
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchFields(selectedProjectId)
+    }
+  }, [selectedProjectId, fetchFields])
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
+  const fieldsWithPolygon = fields.filter(f => f.area_polygon).length
 
   const handleFieldClick = (fieldId: string) => {
     setSelectedField(fieldId)
+  }
+
+  // 工事が選択されていない場合
+  if (!selectedProjectId || !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">地図</h1>
+          <p className="text-muted-foreground">圃場の位置と進捗状況を地図上で確認できます</p>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
+          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">工事を選択してください</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ヘッダーから工事を選択すると、その工事の圃場が地図に表示されます
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -18,7 +55,10 @@ export function MapPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">地図</h1>
-          <p className="text-muted-foreground">圃場の位置と進捗状況を地図上で確認できます</p>
+          <p className="text-muted-foreground">
+            {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+            {selectedProject.name} の圃場を表示しています
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
@@ -38,6 +78,7 @@ export function MapPage() {
             <CardContent className="p-0">
               <MapView
                 className="h-[600px] rounded-lg"
+                projectId={selectedProjectId}
                 onFieldClick={handleFieldClick}
               />
             </CardContent>
@@ -78,20 +119,21 @@ export function MapPage() {
             </Card>
           )}
 
-          {/* 工事一覧 */}
+          {/* 工事情報 */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">工事一覧</CardTitle>
+              <CardTitle className="text-lg">工事情報</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="p-2 rounded bg-primary/10 border border-primary cursor-pointer">
-                  <p className="font-medium text-sm">空知地区農地整備事業</p>
-                  <p className="text-xs text-muted-foreground">圃場: 3件</p>
-                </div>
-                <div className="p-2 rounded border hover:bg-gray-50 cursor-pointer">
-                  <p className="font-medium text-sm">十勝地区圃場整備事業</p>
-                  <p className="text-xs text-muted-foreground">圃場: 5件</p>
+                <div className="p-2 rounded bg-primary/10 border border-primary">
+                  <p className="font-medium text-sm">
+                    {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+                    {selectedProject.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ポリゴン設定済: {fieldsWithPolygon}件 / 全圃場: {fields.length}件
+                  </p>
                 </div>
               </div>
             </CardContent>

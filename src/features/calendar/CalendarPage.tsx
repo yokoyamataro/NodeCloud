@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,14 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Filter, Download } from 'lucide-react'
+import { Filter, Download, Building2 } from 'lucide-react'
 import { GanttCalendar } from '@/components/calendar/GanttCalendar'
-import { useProjectStore } from '@/stores/projectStore'
+import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
 export function CalendarPage() {
-  const [searchParams] = useSearchParams()
-  const projectId = searchParams.get('project')
-
   const {
     projects,
     projectFields,
@@ -26,8 +22,8 @@ export function CalendarPage() {
     fetchWorkTypes,
     isLoading
   } = useProjectStore()
+  const { selectedProjectId } = useSelectedProjectStore()
 
-  const [selectedProject, setSelectedProject] = useState<string>(projectId || '')
   const [selectedWorkType, setSelectedWorkType] = useState<string>('all')
 
   useEffect(() => {
@@ -36,18 +32,12 @@ export function CalendarPage() {
   }, [fetchProjects, fetchWorkTypes])
 
   useEffect(() => {
-    if (selectedProject) {
-      fetchProjectFields(selectedProject)
+    if (selectedProjectId) {
+      fetchProjectFields(selectedProjectId)
     }
-  }, [selectedProject, fetchProjectFields])
+  }, [selectedProjectId, fetchProjectFields])
 
-  useEffect(() => {
-    if (projectId) {
-      setSelectedProject(projectId)
-    } else if (projects.length > 0 && !selectedProject) {
-      setSelectedProject(projects[0].id)
-    }
-  }, [projectId, projects, selectedProject])
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
 
   const handleAssignmentClick = (assignmentId: string) => {
     console.log('Assignment clicked:', assignmentId)
@@ -62,6 +52,25 @@ export function CalendarPage() {
         assignments: pf.assignments.filter(a => a.work_type_id === selectedWorkType)
       })).filter(pf => pf.assignments.length > 0)
 
+  // 工事が選択されていない場合
+  if (!selectedProjectId || !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">カレンダー</h1>
+          <p className="text-muted-foreground">工事の工程をガントチャートで確認できます</p>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
+          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">工事を選択してください</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            ヘッダーから工事を選択すると、その工事の工程表が表示されます
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -75,7 +84,10 @@ export function CalendarPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">カレンダー</h1>
-          <p className="text-muted-foreground">工事の工程をガントチャートで確認できます</p>
+          <p className="text-muted-foreground">
+            {selectedProject.fiscal_year && `${selectedProject.fiscal_year}年度 `}
+            {selectedProject.name} の工程表
+          </p>
         </div>
         <Button variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -87,21 +99,6 @@ export function CalendarPage() {
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-1 block">工事</label>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="工事を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="w-48">
               <label className="text-sm font-medium mb-1 block">工種</label>
               <Select value={selectedWorkType} onValueChange={setSelectedWorkType}>
@@ -130,22 +127,16 @@ export function CalendarPage() {
       </Card>
 
       {/* ガントチャート */}
-      {selectedProject ? (
+      {selectedProjectId ? (
         <GanttCalendar
           projectFields={filteredFields}
           workTypes={workTypes}
           onAssignmentClick={handleAssignmentClick}
         />
-      ) : (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <p className="text-muted-foreground">工事を選択してください</p>
-          </CardContent>
-        </Card>
-      )}
+      ) : null}
 
       {/* サマリー */}
-      {selectedProject && filteredFields.length > 0 && (
+      {selectedProjectId && filteredFields.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
