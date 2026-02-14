@@ -200,19 +200,43 @@ export const useFieldStore = create<FieldState>((set, get) => ({
         return
       }
 
-      let query = supabase
-        .from('fields')
-        .select('*, farmer:farmers(*)')
-        .order('field_number')
-
       if (projectId) {
-        query = query.eq('farmer.project_id', projectId)
+        // プロジェクトIDでフィルタリングする場合、farmersテーブル経由で取得
+        const { data: farmersData, error: farmersError } = await supabase
+          .from('farmers')
+          .select('id')
+          .eq('project_id', projectId)
+
+        if (farmersError) throw farmersError
+
+        const farmerIds = farmersData?.map(f => f.id) || []
+
+        if (farmerIds.length === 0) {
+          set({ fields: [], isLoading: false })
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('fields')
+          .select('*, farmer:farmers(*)')
+          .in('farmer_id', farmerIds)
+          .order('field_number')
+
+        if (error) throw error
+        // farmerがnullの場合を除外
+        const validFields = (data || []).filter((f): f is FieldWithFarmer => f.farmer !== null)
+        set({ fields: validFields, isLoading: false })
+      } else {
+        const { data, error } = await supabase
+          .from('fields')
+          .select('*, farmer:farmers(*)')
+          .order('field_number')
+
+        if (error) throw error
+        // farmerがnullの場合を除外
+        const validFields = (data || []).filter((f): f is FieldWithFarmer => f.farmer !== null)
+        set({ fields: validFields, isLoading: false })
       }
-
-      const { data, error } = await query
-
-      if (error) throw error
-      set({ fields: data || [], isLoading: false })
     } catch (error) {
       set({ error: (error as Error).message, isLoading: false })
     }
