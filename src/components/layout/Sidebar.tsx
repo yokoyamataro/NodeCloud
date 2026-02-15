@@ -49,7 +49,7 @@ export function Sidebar() {
             <div>
               <h1 className="text-lg font-bold text-gray-900">農土施工管理</h1>
               <p className="text-xs text-muted-foreground">
-                {new Date(__BUILD_DATE__).toLocaleDateString('ja-JP')} デプロイ
+                {new Date(__BUILD_DATE__).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} デプロイ
               </p>
             </div>
           </div>

@@ -36,12 +36,18 @@ const SOIL_TYPES = [
   'その他',
 ]
 
+interface WorkAreaInput {
+  work_type_id: string
+  area_hectares: number
+}
+
 interface FieldFormData {
   farmer_id: string
   field_number: number
   area_hectares: number
   soil_type: string
   notes: string
+  workAreas: WorkAreaInput[]
 }
 
 const initialFormData: FieldFormData = {
@@ -50,6 +56,7 @@ const initialFormData: FieldFormData = {
   area_hectares: 0,
   soil_type: '',
   notes: '',
+  workAreas: [],
 }
 
 interface FarmerFormData {
@@ -80,12 +87,15 @@ export function FieldListPage() {
     fields,
     farmers,
     projectFields,
+    workTypes,
     isLoading,
     fetchFields,
     fetchFarmers,
     fetchProjectFields,
+    fetchWorkTypes,
     createField,
     createFarmer,
+    createFieldWorkArea,
   } = useFieldStore()
   const { projects, fetchProjects } = useProjectStore()
   const { selectedProjectId } = useSelectedProjectStore()
@@ -100,7 +110,8 @@ export function FieldListPage() {
 
   useEffect(() => {
     fetchProjects()
-  }, [fetchProjects])
+    fetchWorkTypes()
+  }, [fetchProjects, fetchWorkTypes])
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -138,7 +149,7 @@ export function FieldListPage() {
 
   const handleCreateField = async () => {
     try {
-      await createField(
+      const newField = await createField(
         {
           farmer_id: formData.farmer_id,
           field_number: formData.field_number,
@@ -149,6 +160,18 @@ export function FieldListPage() {
         },
         formData.farmer_id
       )
+
+      // 工種別面積を登録
+      for (const workArea of formData.workAreas) {
+        if (workArea.area_hectares > 0) {
+          await createFieldWorkArea({
+            field_id: newField.id,
+            work_type_id: workArea.work_type_id,
+            area_hectares: workArea.area_hectares,
+            notes: null,
+          })
+        }
+      }
 
       // 圃場一覧を再取得
       await fetchFields()
@@ -433,7 +456,15 @@ export function FieldListPage() {
               <Label htmlFor="farmer_id">農家 *</Label>
               <Select
                 value={formData.farmer_id}
-                onValueChange={(v) => setFormData({ ...formData, farmer_id: v })}
+                onValueChange={(v) => {
+                  // 選択した農家の既存圃場番号の最大値を取得し、+1を設定
+                  const farmerFields = fields.filter((f) => f.farmer_id === v)
+                  const maxFieldNumber = farmerFields.reduce(
+                    (max, f) => Math.max(max, f.field_number),
+                    0
+                  )
+                  setFormData({ ...formData, farmer_id: v, field_number: maxFieldNumber + 1 })
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="農家を選択" />
@@ -500,6 +531,38 @@ export function FieldListPage() {
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
               />
+            </div>
+            {/* 工種別面積 */}
+            <div className="space-y-2">
+              <Label>工種別面積 (ha)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {workTypes.map((wt) => {
+                  const workArea = formData.workAreas.find((wa) => wa.work_type_id === wt.id)
+                  return (
+                    <div key={wt.id} className="flex items-center gap-2">
+                      <Label className="w-16 text-sm">{wt.name}</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        placeholder="0.00"
+                        value={workArea?.area_hectares || ''}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0
+                          const newWorkAreas = formData.workAreas.filter(
+                            (wa) => wa.work_type_id !== wt.id
+                          )
+                          if (value > 0) {
+                            newWorkAreas.push({ work_type_id: wt.id, area_hectares: value })
+                          }
+                          setFormData({ ...formData, workAreas: newWorkAreas })
+                        }}
+                        className="h-8"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
           <DialogFooter>
