@@ -149,28 +149,16 @@ export function MapPage() {
                 <p className="text-sm font-medium">進捗状況</p>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-gray-400"></div>
-                    <span>未着手 (0%)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-red-300"></div>
-                    <span>着手 (1-24%)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-yellow-300"></div>
-                    <span>進行中 (25-49%)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-blue-300"></div>
-                    <span>後半 (50-74%)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-green-300"></div>
-                    <span>終盤 (75-99%)</span>
+                    <div className="w-4 h-4 rounded bg-blue-500"></div>
+                    <span>未着手</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-4 h-4 rounded bg-green-500"></div>
-                    <span>完了 (100%)</span>
+                    <span>進行中</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-4 h-4 rounded bg-red-500"></div>
+                    <span>完了</span>
                   </div>
                 </div>
               </div>

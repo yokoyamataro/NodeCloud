@@ -12,14 +12,11 @@ if (mapboxToken) {
 export const HOKKAIDO_CENTER: [number, number] = [143.0, 43.0]
 export const DEFAULT_ZOOM = 8
 
-// 進捗状況に応じたポリゴンの色
+// 進捗状況に応じたポリゴンの色（未着手:青、進行中:緑、完了:赤）
 export function getFieldPolygonColor(progressPct: number): string {
-  if (progressPct === 0) return '#9CA3AF'      // gray-400
-  if (progressPct < 25) return '#FCA5A5'       // red-300
-  if (progressPct < 50) return '#FCD34D'       // yellow-300
-  if (progressPct < 75) return '#93C5FD'       // blue-300
-  if (progressPct < 100) return '#86EFAC'      // green-300
-  return '#22C55E'                              // green-500
+  if (progressPct === 0) return '#3B82F6'      // blue-500 (未着手)
+  if (progressPct < 100) return '#22C55E'      // green-500 (進行中)
+  return '#EF4444'                              // red-500 (完了)
 }
 
 export { mapboxgl }

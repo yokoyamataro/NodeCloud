@@ -266,15 +266,15 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: getFieldPolygonColor(0) }}></div>
-              <span>0%</span>
+              <span>未着手</span>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: getFieldPolygonColor(50) }}></div>
-              <span>25-75%</span>
+              <span>進行中</span>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: getFieldPolygonColor(100) }}></div>
-              <span>100%</span>
+              <span>完了</span>
             </div>
           </div>
         </div>

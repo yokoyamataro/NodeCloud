@@ -9,3 +9,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// ビルド時に注入されるグローバル変数
+declare const __BUILD_DATE__: string

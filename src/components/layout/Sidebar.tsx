@@ -48,7 +48,9 @@ export function Sidebar() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">農土施工管理</h1>
-              <p className="text-xs text-muted-foreground">北海道農業土木</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(__BUILD_DATE__).toLocaleDateString('ja-JP')} デプロイ
+              </p>
             </div>
           </div>
         </div>
