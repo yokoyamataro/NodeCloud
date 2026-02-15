@@ -29,12 +29,9 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
   }, [fetchFields, fetchProjectFields, projectId])
 
   // ポリゴンがある圃場のみをフィルタリング
+  // fetchFields(projectId)でプロジェクトの圃場のみ取得しているので、追加のフィルタリングは不要
   const fieldsWithPolygon = fields.filter((field) => {
     if (!field.area_polygon) return false
-    // projectIdが指定されている場合は、その工事に紐づく圃場のみ表示
-    if (projectId) {
-      return projectFields.some((pf) => pf.field_id === field.id)
-    }
     return true
   })
 
