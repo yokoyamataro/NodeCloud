@@ -131,54 +131,97 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                       )
                     })}
 
-                    {/* 作業バー */}
-                    {projectField.assignments.map((assignment) => {
-                      if (!assignment.planned_start || !assignment.planned_end) return null
-
-                      const startDate = parseISO(assignment.planned_start)
-                      const endDate = parseISO(assignment.planned_end)
-
-                      // この月に表示されるかチェック
-                      if (endDate < monthStart || startDate > monthEnd) return null
-
-                      // 表示範囲を計算
-                      const displayStart = startDate < monthStart ? monthStart : startDate
-                      const displayEnd = endDate > monthEnd ? monthEnd : endDate
-
-                      const offsetDays = differenceInDays(displayStart, monthStart)
-                      const durationDays = differenceInDays(displayEnd, displayStart) + 1
-
+                    {/* 作業バー（予定と実績） */}
+                    {projectField.assignments.map((assignment, idx) => {
                       const workType = workTypes.find(wt => wt.id === assignment.work_type_id)
+                      const bars: React.ReactNode[] = []
 
-                      return (
-                        <Tooltip key={assignment.id}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="absolute h-6 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-xs font-medium shadow-sm"
-                              style={{
-                                left: offsetDays * DAY_WIDTH + 2,
-                                width: durationDays * DAY_WIDTH - 4,
-                                top: 10,
-                                backgroundColor: workType?.color || '#6B7280',
-                              }}
-                              onClick={() => onAssignmentClick?.(assignment.id)}
-                            >
-                              {durationDays >= 3 && (
-                                <span className="truncate px-1">
-                                  {workType?.name} {assignment.progress_pct}%
-                                </span>
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="text-sm">
-                              <p className="font-medium">{workType?.name}</p>
-                              <p>{assignment.planned_start} 〜 {assignment.planned_end}</p>
-                              <p>進捗: {assignment.progress_pct}%</p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      )
+                      // 予定バー
+                      if (assignment.planned_start && assignment.planned_end) {
+                        const startDate = parseISO(assignment.planned_start)
+                        const endDate = parseISO(assignment.planned_end)
+
+                        if (!(endDate < monthStart || startDate > monthEnd)) {
+                          const displayStart = startDate < monthStart ? monthStart : startDate
+                          const displayEnd = endDate > monthEnd ? monthEnd : endDate
+                          const offsetDays = differenceInDays(displayStart, monthStart)
+                          const durationDays = differenceInDays(displayEnd, displayStart) + 1
+
+                          bars.push(
+                            <Tooltip key={`${assignment.id}-planned`}>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="absolute h-3 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-xs font-medium border-2 border-dashed"
+                                  style={{
+                                    left: offsetDays * DAY_WIDTH + 2,
+                                    width: durationDays * DAY_WIDTH - 4,
+                                    top: 4 + idx * 2,
+                                    backgroundColor: 'transparent',
+                                    borderColor: workType?.color || '#6B7280',
+                                  }}
+                                  onClick={() => onAssignmentClick?.(assignment.id)}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-sm">
+                                  <p className="font-medium">{workType?.name}（予定）</p>
+                                  <p>{assignment.planned_start} 〜 {assignment.planned_end}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          )
+                        }
+                      }
+
+                      // 実績バー
+                      if (assignment.actual_start) {
+                        const startDate = parseISO(assignment.actual_start)
+                        const endDate = assignment.actual_end
+                          ? parseISO(assignment.actual_end)
+                          : new Date() // 完了日がなければ今日まで
+
+                        if (!(endDate < monthStart || startDate > monthEnd)) {
+                          const displayStart = startDate < monthStart ? monthStart : startDate
+                          const displayEnd = endDate > monthEnd ? monthEnd : endDate
+                          const offsetDays = differenceInDays(displayStart, monthStart)
+                          const durationDays = differenceInDays(displayEnd, displayStart) + 1
+
+                          bars.push(
+                            <Tooltip key={`${assignment.id}-actual`}>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="absolute h-5 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-xs font-medium shadow-sm"
+                                  style={{
+                                    left: offsetDays * DAY_WIDTH + 2,
+                                    width: durationDays * DAY_WIDTH - 4,
+                                    top: 12 + idx * 2,
+                                    backgroundColor: workType?.color || '#6B7280',
+                                  }}
+                                  onClick={() => onAssignmentClick?.(assignment.id)}
+                                >
+                                  {durationDays >= 3 && (
+                                    <span className="truncate px-1">
+                                      {workType?.name} {assignment.progress_pct}%
+                                    </span>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-sm">
+                                  <p className="font-medium">{workType?.name}（実績）</p>
+                                  <p>{assignment.actual_start} 〜 {assignment.actual_end || '作業中'}</p>
+                                  <p>進捗: {assignment.progress_pct}%</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          )
+                        }
+                      }
+
+                      // 予定も実績もない場合は何も表示しない
+                      if (bars.length === 0) return null
+
+                      return bars
                     })}
                   </div>
                 </div>
@@ -198,7 +241,16 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
 
       {/* 工種凡例 */}
       <div className="p-4 border-t bg-gray-50">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-3 rounded border-2 border-dashed border-gray-500" />
+            <span className="text-sm text-muted-foreground">予定</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-4 rounded bg-gray-500" />
+            <span className="text-sm text-muted-foreground">実績</span>
+          </div>
+          <div className="border-l h-4 mx-2" />
           {workTypes.map((wt) => (
             <div key={wt.id} className="flex items-center gap-1.5">
               <div

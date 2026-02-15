@@ -31,7 +31,7 @@ import { Progress } from '@/components/ui/progress'
 import { PolygonEditor } from '@/components/map/PolygonEditor'
 import { CoordinateInput } from '@/components/map/CoordinateInput'
 import { useFieldStore } from '@/stores/fieldStore'
-import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldCropWithCropType } from '@/types/database'
+import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldCropWithCropType, FieldWorkAssignmentWithDetails } from '@/types/database'
 
 const SOIL_TYPES = [
   '黒ボク土',
@@ -77,6 +77,9 @@ export function FieldDetailPage() {
     createFieldCrop,
     updateFieldCrop,
     deleteFieldCrop,
+    createFieldWorkAssignment,
+    updateFieldWorkAssignment,
+    deleteFieldWorkAssignment,
   } = useFieldStore()
 
   const [field, setField] = useState<FieldWithFarmer | null>(null)
@@ -113,6 +116,20 @@ export function FieldDetailPage() {
   // 作付け追加ダイアログ
   const [isNewCropTypeDialogOpen, setIsNewCropTypeDialogOpen] = useState(false)
   const [newCropTypeName, setNewCropTypeName] = useState('')
+
+  // 工程管理ダイアログの状態
+  const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState<FieldWorkAssignmentWithDetails | null>(null)
+  const [assignmentForm, setAssignmentForm] = useState({
+    work_type_id: '',
+    planned_start: '',
+    planned_end: '',
+    actual_start: '',
+    actual_end: '',
+    status: 'not_started' as FieldWorkStatus,
+    progress_pct: 0,
+    notes: '',
+  })
 
   useEffect(() => {
     fetchFields()
@@ -311,6 +328,90 @@ export function FieldDetailPage() {
   const availableWorkTypes = workTypes.filter(
     wt => !fieldWorkAreas.some(fwa => fwa.work_type_id === wt.id)
   )
+
+  // 工程管理ハンドラー
+  const handleOpenAssignmentDialog = (assignment?: FieldWorkAssignmentWithDetails) => {
+    if (assignment) {
+      setEditingAssignment(assignment)
+      setAssignmentForm({
+        work_type_id: assignment.work_type_id,
+        planned_start: assignment.planned_start || '',
+        planned_end: assignment.planned_end || '',
+        actual_start: assignment.actual_start || '',
+        actual_end: assignment.actual_end || '',
+        status: assignment.status,
+        progress_pct: assignment.progress_pct,
+        notes: assignment.notes || '',
+      })
+    } else {
+      setEditingAssignment(null)
+      setAssignmentForm({
+        work_type_id: '',
+        planned_start: '',
+        planned_end: '',
+        actual_start: '',
+        actual_end: '',
+        status: 'not_started',
+        progress_pct: 0,
+        notes: '',
+      })
+    }
+    setIsAssignmentDialogOpen(true)
+  }
+
+  const handleSaveAssignment = async () => {
+    if (!projectField) return
+    try {
+      if (editingAssignment) {
+        await updateFieldWorkAssignment(editingAssignment.id, {
+          planned_start: assignmentForm.planned_start || null,
+          planned_end: assignmentForm.planned_end || null,
+          actual_start: assignmentForm.actual_start || null,
+          actual_end: assignmentForm.actual_end || null,
+          status: assignmentForm.status,
+          progress_pct: assignmentForm.progress_pct,
+          notes: assignmentForm.notes || null,
+        })
+      } else {
+        await createFieldWorkAssignment(projectField.id, {
+          work_type_id: assignmentForm.work_type_id,
+          assigned_company_id: null,
+          status: assignmentForm.status,
+          progress_pct: assignmentForm.progress_pct,
+          planned_start: assignmentForm.planned_start || null,
+          planned_end: assignmentForm.planned_end || null,
+          actual_start: assignmentForm.actual_start || null,
+          actual_end: assignmentForm.actual_end || null,
+          estimated_hours: null,
+          actual_hours: 0,
+          notes: assignmentForm.notes || null,
+        })
+      }
+      setIsAssignmentDialogOpen(false)
+      // projectFieldsを再取得して更新を反映
+      if (field) {
+        const updatedProjectField = projectFields.find((pf) => pf.field_id === field.id)
+        if (updatedProjectField) {
+          setProjectField(updatedProjectField)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save assignment:', error)
+    }
+  }
+
+  const handleDeleteAssignment = async (id: string) => {
+    try {
+      await deleteFieldWorkAssignment(id)
+    } catch (error) {
+      console.error('Failed to delete assignment:', error)
+    }
+  }
+
+  // 工程に登録されていない工種を取得
+  const availableWorkTypesForAssignment = projectField
+    ? workTypes.filter(wt => !projectField.assignments.some(a => a.work_type_id === wt.id))
+    : workTypes
 
   if (!field) {
     return (
@@ -595,50 +696,102 @@ export function FieldDetailPage() {
             </CardContent>
           </Card>
 
-          {/* 工種別進捗 */}
+          {/* 工程管理（工種別日程・進捗） */}
           {projectField && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  工種別進捗
-                </CardTitle>
-                <CardDescription>
-                  全体進捗: {totalProgress}%
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      工程管理
+                    </CardTitle>
+                    <CardDescription>
+                      全体進捗: {totalProgress || 0}%
+                    </CardDescription>
+                  </div>
+                  <Button size="sm" onClick={() => handleOpenAssignmentDialog()}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    工種を追加
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Progress value={totalProgress} className="h-2" />
-                <div className="space-y-3">
-                  {projectField.assignments.map((assignment) => {
-                    const StatusIcon = STATUS_CONFIG[assignment.status].icon
-                    return (
-                      <div key={assignment.id} className="space-y-1">
-                        <div className="flex items-center justify-between">
+                <Progress value={totalProgress || 0} className="h-2" />
+                {projectField.assignments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    工種が登録されていません
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {projectField.assignments.map((assignment) => {
+                      const StatusIcon = STATUS_CONFIG[assignment.status].icon
+                      return (
+                        <div key={assignment.id} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded"
+                                style={{ backgroundColor: assignment.work_type.color || '#9CA3AF' }}
+                              />
+                              <span className="text-sm font-medium">
+                                {assignment.work_type.name}
+                              </span>
+                              <Badge className={STATUS_CONFIG[assignment.status].color}>
+                                <StatusIcon className="h-3 w-3 mr-1" />
+                                {STATUS_CONFIG[assignment.status].label}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenAssignmentDialog(assignment)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteAssignment(assignment.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded"
-                              style={{ backgroundColor: assignment.work_type.color || '#9CA3AF' }}
-                            />
-                            <span className="text-sm font-medium">
-                              {assignment.work_type.name}
+                            <Progress value={assignment.progress_pct} className="h-1.5 flex-1" />
+                            <span className="text-xs text-muted-foreground w-10">
+                              {assignment.progress_pct}%
                             </span>
                           </div>
-                          <Badge className={STATUS_CONFIG[assignment.status].color}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {STATUS_CONFIG[assignment.status].label}
-                          </Badge>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">予定: </span>
+                              {assignment.planned_start && assignment.planned_end ? (
+                                <span>{assignment.planned_start} 〜 {assignment.planned_end}</span>
+                              ) : (
+                                <span className="text-muted-foreground">未設定</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">実績: </span>
+                              {assignment.actual_start ? (
+                                <span>
+                                  {assignment.actual_start}
+                                  {assignment.actual_end ? ` 〜 ${assignment.actual_end}` : ' 〜'}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">未着手</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Progress value={assignment.progress_pct} className="h-1.5 flex-1" />
-                          <span className="text-xs text-muted-foreground w-10">
-                            {assignment.progress_pct}%
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -995,6 +1148,148 @@ export function FieldDetailPage() {
               disabled={!newCropTypeName.trim()}
             >
               追加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 工程管理ダイアログ */}
+      <Dialog open={isAssignmentDialogOpen} onOpenChange={setIsAssignmentDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingAssignment ? '工程を編集' : '工程を追加'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>工種</Label>
+              {editingAssignment ? (
+                <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
+                  <div
+                    className="w-3 h-3 rounded"
+                    style={{ backgroundColor: editingAssignment.work_type.color || '#9CA3AF' }}
+                  />
+                  <span>{editingAssignment.work_type.name}</span>
+                </div>
+              ) : (
+                <Select
+                  value={assignmentForm.work_type_id}
+                  onValueChange={(v) => setAssignmentForm({ ...assignmentForm, work_type_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="工種を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableWorkTypesForAssignment.map((wt) => (
+                      <SelectItem key={wt.id} value={wt.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded"
+                            style={{ backgroundColor: wt.color || '#9CA3AF' }}
+                          />
+                          {wt.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="planned_start">予定着工日</Label>
+                <Input
+                  id="planned_start"
+                  type="date"
+                  value={assignmentForm.planned_start}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, planned_start: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="planned_end">予定完了日</Label>
+                <Input
+                  id="planned_end"
+                  type="date"
+                  value={assignmentForm.planned_end}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, planned_end: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="actual_start">実績着工日</Label>
+                <Input
+                  id="actual_start"
+                  type="date"
+                  value={assignmentForm.actual_start}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, actual_start: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="actual_end">実績完了日</Label>
+                <Input
+                  id="actual_end"
+                  type="date"
+                  value={assignmentForm.actual_end}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, actual_end: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="assignment_status">ステータス</Label>
+                <Select
+                  value={assignmentForm.status}
+                  onValueChange={(v) => setAssignmentForm({ ...assignmentForm, status: v as FieldWorkStatus })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="progress_pct">進捗 (%)</Label>
+                <Input
+                  id="progress_pct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={assignmentForm.progress_pct}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, progress_pct: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="assignment_notes">備考</Label>
+              <Textarea
+                id="assignment_notes"
+                value={assignmentForm.notes}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAssignmentDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSaveAssignment}
+              disabled={!editingAssignment && !assignmentForm.work_type_id}
+            >
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>

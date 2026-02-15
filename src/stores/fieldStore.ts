@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
-import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType, FieldWorkArea, FieldWorkAreaWithWorkType, CropType, FieldCrop, FieldCropWithCropType } from '@/types/database'
+import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType, FieldWorkArea, FieldWorkAreaWithWorkType, CropType, FieldCrop, FieldCropWithCropType, FieldWorkAssignment, FieldWorkAssignmentWithDetails } from '@/types/database'
 
 // デモモードの判定（環境変数が設定されていない場合はデモモード）
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
@@ -212,6 +212,10 @@ interface FieldState {
   createFieldCrop: (data: Omit<FieldCrop, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldCrop>
   updateFieldCrop: (id: string, data: Partial<FieldCrop>) => Promise<void>
   deleteFieldCrop: (id: string) => Promise<void>
+  // 工種割り当て（工程管理）
+  createFieldWorkAssignment: (projectFieldId: string, data: Omit<FieldWorkAssignment, 'id' | 'project_field_id' | 'created_at' | 'updated_at'>) => Promise<FieldWorkAssignmentWithDetails>
+  updateFieldWorkAssignment: (id: string, data: Partial<FieldWorkAssignment>) => Promise<void>
+  deleteFieldWorkAssignment: (id: string) => Promise<void>
 }
 
 export const useFieldStore = create<FieldState>((set, get) => ({
@@ -870,6 +874,148 @@ export const useFieldStore = create<FieldState>((set, get) => ({
 
       set((state) => ({
         fieldCrops: state.fieldCrops.filter((fc) => fc.id !== id),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種割り当て（工程管理）を作成
+  createFieldWorkAssignment: async (projectFieldId, data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+      const { workTypes } = get()
+
+      if (useDemoMode) {
+        const workType = workTypes.find((wt) => wt.id === data.work_type_id)
+        const newAssignment: FieldWorkAssignmentWithDetails = {
+          id: `assignment-${Date.now()}`,
+          project_field_id: projectFieldId,
+          work_type_id: data.work_type_id,
+          assigned_company_id: data.assigned_company_id || null,
+          status: data.status || 'not_started',
+          progress_pct: data.progress_pct || 0,
+          planned_start: data.planned_start || null,
+          planned_end: data.planned_end || null,
+          actual_start: data.actual_start || null,
+          actual_end: data.actual_end || null,
+          estimated_hours: data.estimated_hours || null,
+          actual_hours: data.actual_hours || 0,
+          notes: data.notes || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          work_type: workType!,
+        }
+
+        set((state) => ({
+          projectFields: state.projectFields.map((pf) =>
+            pf.id === projectFieldId
+              ? { ...pf, assignments: [...pf.assignments, newAssignment] }
+              : pf
+          ),
+          isLoading: false,
+        }))
+
+        return newAssignment
+      }
+
+      const { data: created, error } = await supabase
+        .from('field_work_assignments')
+        .insert({
+          project_field_id: projectFieldId,
+          ...data,
+        })
+        .select('*, work_type:work_types(*), assigned_company:companies(*)')
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        projectFields: state.projectFields.map((pf) =>
+          pf.id === projectFieldId
+            ? { ...pf, assignments: [...pf.assignments, created as FieldWorkAssignmentWithDetails] }
+            : pf
+        ),
+        isLoading: false,
+      }))
+
+      return created as FieldWorkAssignmentWithDetails
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種割り当て（工程管理）を更新
+  updateFieldWorkAssignment: async (id, data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          projectFields: state.projectFields.map((pf) => ({
+            ...pf,
+            assignments: pf.assignments.map((a) =>
+              a.id === id ? { ...a, ...data, updated_at: new Date().toISOString() } : a
+            ),
+          })),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('field_work_assignments')
+        .update(data)
+        .eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        projectFields: state.projectFields.map((pf) => ({
+          ...pf,
+          assignments: pf.assignments.map((a) =>
+            a.id === id ? { ...a, ...data, updated_at: new Date().toISOString() } : a
+          ),
+        })),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 工種割り当て（工程管理）を削除
+  deleteFieldWorkAssignment: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          projectFields: state.projectFields.map((pf) => ({
+            ...pf,
+            assignments: pf.assignments.filter((a) => a.id !== id),
+          })),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase.from('field_work_assignments').delete().eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        projectFields: state.projectFields.map((pf) => ({
+          ...pf,
+          assignments: pf.assignments.filter((a) => a.id !== id),
+        })),
         isLoading: false,
       }))
     } catch (error) {
