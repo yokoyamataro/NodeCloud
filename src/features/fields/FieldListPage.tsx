@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, MapPin, Ruler, User, ChevronRight, Map, UserPlus, Building2 } from 'lucide-react'
+import { Plus, Search, Map, UserPlus, Building2, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,11 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFieldStore } from '@/stores/fieldStore'
 import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
-import type { FieldWithFarmer } from '@/types/database'
 
 const SOIL_TYPES = [
   '黒ボク土',
@@ -121,31 +128,32 @@ export function FieldListPage() {
     }
   }, [selectedProjectId, fetchFields, fetchFarmers, fetchProjectFields])
 
-  const filteredFields = fields.filter((field) => {
-    const matchesSearch =
-      field.farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${field.farmer.farmer_number}-${field.field_number}`.includes(searchQuery) ||
-      field.soil_type?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFields = useMemo(() => {
+    return fields.filter((field) => {
+      const matchesSearch =
+        field.farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        `${field.farmer.farmer_number}-${field.field_number}`.includes(searchQuery) ||
+        field.soil_type?.toLowerCase().includes(searchQuery.toLowerCase())
 
-    const matchesFarmer = filterFarmer === 'all' || field.farmer_id === filterFarmer
+      const matchesFarmer = filterFarmer === 'all' || field.farmer_id === filterFarmer
 
-    const matchesPolygon =
-      filterPolygon === 'all' ||
-      (filterPolygon === 'with' && field.area_polygon) ||
-      (filterPolygon === 'without' && !field.area_polygon)
+      const matchesPolygon =
+        filterPolygon === 'all' ||
+        (filterPolygon === 'with' && field.area_polygon) ||
+        (filterPolygon === 'without' && !field.area_polygon)
 
-    return matchesSearch && matchesFarmer && matchesPolygon
-  })
+      return matchesSearch && matchesFarmer && matchesPolygon
+    })
+  }, [fields, searchQuery, filterFarmer, filterPolygon])
 
-  // 農家ごとにグループ化
-  const groupedFields = filteredFields.reduce<Record<string, FieldWithFarmer[]>>((acc, field) => {
-    const farmerId = field.farmer_id
-    if (!acc[farmerId]) {
-      acc[farmerId] = []
-    }
-    acc[farmerId].push(field)
-    return acc
-  }, {})
+  // 圃場を農家番号・圃場番号でソート
+  const sortedFields = useMemo(() => {
+    return [...filteredFields].sort((a, b) => {
+      const aLabel = `${a.farmer.farmer_number}-${a.field_number}`
+      const bLabel = `${b.farmer.farmer_number}-${b.field_number}`
+      return aLabel.localeCompare(bLabel, 'ja', { numeric: true })
+    })
+  }, [filteredFields])
 
   const handleCreateField = async () => {
     try {
@@ -231,12 +239,30 @@ export function FieldListPage() {
     setIsFarmerDialogOpen(true)
   }
 
+  // 圃場の進捗状況を取得
   const getFieldProgress = (fieldId: string): number => {
     const pf = projectFields.find((p) => p.field_id === fieldId)
     if (!pf || pf.assignments.length === 0) return 0
     return Math.round(
       pf.assignments.reduce((sum, a) => sum + a.progress_pct, 0) / pf.assignments.length
     )
+  }
+
+  // 圃場の工種別面積を取得（projectFieldsから）
+  const getFieldWorkAreas = (fieldId: string): { name: string; area: number | null; color: string }[] => {
+    const pf = projectFields.find((p) => p.field_id === fieldId)
+    if (!pf) return []
+    return pf.assignments.map((a) => ({
+      name: a.work_type.name,
+      area: null, // TODO: field_work_areasから取得
+      color: a.work_type.color || '#6B7280',
+    }))
+  }
+
+  // 圃場の作付けを取得（現状はダミー）
+  const getFieldCrops = (_fieldId: string): string[] => {
+    // TODO: fieldCropsから取得
+    return []
   }
 
   const fieldsWithPolygon = fields.filter((f) => f.area_polygon).length
@@ -361,12 +387,12 @@ export function FieldListPage() {
         </Card>
       </div>
 
-      {/* 圃場一覧 */}
+      {/* 圃場一覧（テーブル） */}
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-      ) : filteredFields.length === 0 ? (
+      ) : sortedFields.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed">
           <Map className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground">圃場が見つかりません</p>
@@ -376,72 +402,89 @@ export function FieldListPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedFields).map(([farmerId, farmerFields]) => {
-            const farmer = farmerFields[0]?.farmer
-            if (!farmer) return null
-
-            return (
-              <div key={farmerId}>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <User className="h-5 w-5 text-muted-foreground" />
-                  <span>{farmer.farmer_number}. {farmer.name}</span>
-                  <Badge variant="secondary">{farmerFields.length}圃場</Badge>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {farmerFields.map((field) => {
-                    const progress = getFieldProgress(field.id)
-                    return (
-                      <Card
-                        key={field.id}
-                        className="hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => navigate(`/fields/${field.id}`)}
-                      >
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <span className="text-lg font-bold">
-                                {field.farmer.farmer_number}-{field.field_number}
-                              </span>
-                              {field.area_polygon ? (
-                                <Badge variant="default" className="bg-green-100 text-green-700">
-                                  <MapPin className="h-3 w-3 mr-1" />
-                                  設定済
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">未設定</Badge>
-                              )}
-                            </CardTitle>
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            {field.area_hectares && (
-                              <div className="flex items-center gap-1">
-                                <Ruler className="h-4 w-4" />
-                                {field.area_hectares} ha
-                              </div>
-                            )}
-                            {field.soil_type && (
-                              <div>{field.soil_type}</div>
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">進捗</span>
-                              <span className="font-medium">{progress}%</span>
-                            </div>
-                            <Progress value={progress} className="h-2" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
+        <div className="rounded-md border bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">圃場番号</TableHead>
+                <TableHead className="w-[120px]">受益者名</TableHead>
+                <TableHead>工種</TableHead>
+                <TableHead className="w-[120px]">作付け</TableHead>
+                <TableHead className="w-[150px]">進捗状況</TableHead>
+                <TableHead className="w-[80px]">地図</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedFields.map((field) => {
+                const progress = getFieldProgress(field.id)
+                const workAreas = getFieldWorkAreas(field.id)
+                const crops = getFieldCrops(field.id)
+                return (
+                  <TableRow
+                    key={field.id}
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => navigate(`/fields/${field.id}`)}
+                  >
+                    <TableCell className="font-medium">
+                      {field.farmer.farmer_number}-{field.field_number}
+                    </TableCell>
+                    <TableCell>{field.farmer.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {workAreas.length > 0 ? (
+                          workAreas.map((wa, idx) => (
+                            <Badge
+                              key={idx}
+                              variant="outline"
+                              style={{
+                                borderColor: wa.color,
+                                backgroundColor: `${wa.color}20`,
+                              }}
+                            >
+                              {wa.name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {crops.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {crops.map((crop, idx) => (
+                            <Badge key={idx} variant="secondary">
+                              {crop}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{progress}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {field.area_polygon ? (
+                        <Badge variant="default" className="bg-green-100 text-green-700">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          済
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">未</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
 
