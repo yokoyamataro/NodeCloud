@@ -95,11 +95,15 @@ export function FieldListPage() {
     farmers,
     projectFields,
     workTypes,
+    fieldWorkAreas,
+    fieldCrops,
     isLoading,
     fetchFields,
     fetchFarmers,
     fetchProjectFields,
     fetchWorkTypes,
+    fetchAllFieldWorkAreas,
+    fetchAllFieldCrops,
     createField,
     createFarmer,
     createFieldWorkArea,
@@ -127,6 +131,15 @@ export function FieldListPage() {
       fetchProjectFields(selectedProjectId)
     }
   }, [selectedProjectId, fetchFields, fetchFarmers, fetchProjectFields])
+
+  // 全圃場の工種別面積と作付けを取得
+  useEffect(() => {
+    if (fields.length > 0) {
+      const fieldIds = fields.map((f) => f.id)
+      fetchAllFieldWorkAreas(fieldIds)
+      fetchAllFieldCrops(fieldIds)
+    }
+  }, [fields, fetchAllFieldWorkAreas, fetchAllFieldCrops])
 
   const filteredFields = useMemo(() => {
     return fields.filter((field) => {
@@ -248,21 +261,30 @@ export function FieldListPage() {
     )
   }
 
-  // 圃場の工種別面積を取得（projectFieldsから）
+  // 圃場の工種別面積を取得（fieldWorkAreasから）
   const getFieldWorkAreas = (fieldId: string): { name: string; area: number | null; color: string }[] => {
+    const areas = fieldWorkAreas.filter((fwa) => fwa.field_id === fieldId)
+    if (areas.length > 0) {
+      return areas.map((a) => ({
+        name: a.work_type.name,
+        area: a.area_hectares,
+        color: a.work_type.color || '#6B7280',
+      }))
+    }
+    // 工種別面積がない場合は工程管理から工種を表示
     const pf = projectFields.find((p) => p.field_id === fieldId)
     if (!pf) return []
     return pf.assignments.map((a) => ({
       name: a.work_type.name,
-      area: null, // TODO: field_work_areasから取得
+      area: null,
       color: a.work_type.color || '#6B7280',
     }))
   }
 
-  // 圃場の作付けを取得（現状はダミー）
-  const getFieldCrops = (_fieldId: string): string[] => {
-    // TODO: fieldCropsから取得
-    return []
+  // 圃場の作付けを取得（fieldCropsから）
+  const getFieldCrops = (fieldId: string): string[] => {
+    const crops = fieldCrops.filter((fc) => fc.field_id === fieldId)
+    return crops.map((c) => c.crop_type.name)
   }
 
   const fieldsWithPolygon = fields.filter((f) => f.area_polygon).length

@@ -201,6 +201,7 @@ interface FieldState {
   fetchWorkTypes: () => Promise<void>
   // 工種面積
   fetchFieldWorkAreas: (fieldId: string) => Promise<void>
+  fetchAllFieldWorkAreas: (fieldIds: string[]) => Promise<void>
   createFieldWorkArea: (data: Omit<FieldWorkArea, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldWorkArea>
   updateFieldWorkArea: (id: string, data: Partial<FieldWorkArea>) => Promise<void>
   deleteFieldWorkArea: (id: string) => Promise<void>
@@ -209,6 +210,7 @@ interface FieldState {
   createCropType: (name: string) => Promise<CropType>
   // 圃場作付け
   fetchFieldCrops: (fieldId: string) => Promise<void>
+  fetchAllFieldCrops: (fieldIds: string[]) => Promise<void>
   createFieldCrop: (data: Omit<FieldCrop, 'id' | 'created_at' | 'updated_at'>) => Promise<FieldCrop>
   updateFieldCrop: (id: string, data: Partial<FieldCrop>) => Promise<void>
   deleteFieldCrop: (id: string) => Promise<void>
@@ -561,6 +563,36 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     }
   },
 
+  // 全圃場の工種面積を一括取得
+  fetchAllFieldWorkAreas: async (fieldIds: string[]) => {
+    if (fieldIds.length === 0) {
+      set({ fieldWorkAreas: [] })
+      return
+    }
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        // デモモードでは現在のfieldWorkAreasから該当fieldIdsのデータのみ保持
+        const currentAreas = get().fieldWorkAreas.filter(fwa => fieldIds.includes(fwa.field_id))
+        set({ fieldWorkAreas: currentAreas })
+        return
+      }
+      set({ isLoading: true, error: null })
+
+      const { data, error } = await supabase
+        .from('field_work_areas')
+        .select('*, work_type:work_types(*)')
+        .in('field_id', fieldIds)
+        .order('created_at')
+
+      if (error) throw error
+      set({ fieldWorkAreas: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
   // 工種面積を追加
   createFieldWorkArea: async (data) => {
     set({ isLoading: true, error: null })
@@ -759,6 +791,36 @@ export const useFieldStore = create<FieldState>((set, get) => ({
         .from('field_crops')
         .select('*, crop_type:crop_types(*)')
         .eq('field_id', fieldId)
+        .order('fiscal_year', { ascending: false })
+
+      if (error) throw error
+      set({ fieldCrops: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
+  // 全圃場の作付けを一括取得
+  fetchAllFieldCrops: async (fieldIds: string[]) => {
+    if (fieldIds.length === 0) {
+      set({ fieldCrops: [] })
+      return
+    }
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        // デモモードでは現在のfieldCropsから該当fieldIdsのデータのみ保持
+        const currentCrops = get().fieldCrops.filter(fc => fieldIds.includes(fc.field_id))
+        set({ fieldCrops: currentCrops })
+        return
+      }
+      set({ isLoading: true, error: null })
+
+      const { data, error } = await supabase
+        .from('field_crops')
+        .select('*, crop_type:crop_types(*)')
+        .in('field_id', fieldIds)
         .order('fiscal_year', { ascending: false })
 
       if (error) throw error
