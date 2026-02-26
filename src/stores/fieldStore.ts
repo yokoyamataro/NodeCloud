@@ -270,7 +270,11 @@ export const useFieldStore = create<FieldState>((set, get) => ({
           .in('farmer_id', farmerIds)
           .order('field_number')
 
-        if (error) throw error
+        if (error) {
+          console.error('Error fetching fields:', error)
+          throw error
+        }
+        console.log('Fetched fields for project:', projectId, data)
         // farmerがnullの場合を除外
         const validFields = (data || []).filter((f): f is FieldWithFarmer => f.farmer !== null)
         set({ fields: validFields, isLoading: false })
@@ -280,7 +284,11 @@ export const useFieldStore = create<FieldState>((set, get) => ({
           .select('*, farmer:farmers(*)')
           .order('field_number')
 
-        if (error) throw error
+        if (error) {
+          console.error('Error fetching all fields:', error)
+          throw error
+        }
+        console.log('Fetched all fields:', data)
         // farmerがnullの場合を除外
         const validFields = (data || []).filter((f): f is FieldWithFarmer => f.farmer !== null)
         set({ fields: validFields, isLoading: false })

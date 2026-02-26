@@ -195,7 +195,9 @@ export function FieldListPage() {
       }
 
       // 圃場一覧を再取得
-      await fetchFields()
+      if (selectedProjectId) {
+        await fetchFields(selectedProjectId)
+      }
 
       setIsDialogOpen(false)
       setFormData(initialFormData)
@@ -228,7 +230,9 @@ export function FieldListPage() {
       })
 
       // 農家一覧を再取得
-      await fetchFarmers()
+      if (selectedProjectId) {
+        await fetchFarmers(selectedProjectId)
+      }
 
       setIsFarmerDialogOpen(false)
       setFarmerFormData({
