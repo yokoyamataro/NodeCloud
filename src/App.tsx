@@ -15,6 +15,7 @@ import { CompaniesPage } from '@/features/companies/CompaniesPage'
 import { UsersPage } from '@/features/users/UsersPage'
 import { FieldListPage } from '@/features/fields/FieldListPage'
 import { FieldDetailPage } from '@/features/fields/FieldDetailPage'
+import { ContractorsPage } from '@/features/contractors/ContractorsPage'
 import { useAuthStore } from '@/stores/authStore'
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="contractors" element={<ContractorsPage />} />
 
         {/* 管理ページ */}
         <Route path="companies" element={<CompaniesPage />} />

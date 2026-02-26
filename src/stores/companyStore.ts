@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
-import type { Company } from '@/types/database'
+import type { Company, ProjectCompanyWithDetails, CompanyRole } from '@/types/database'
+
+// デモモードの判定
+const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
 
 // デモ用のモック業者データ
 const mockCompanies: Company[] = [
@@ -58,26 +61,29 @@ const mockCompanies: Company[] = [
 
 interface CompanyState {
   companies: Company[]
+  projectCompanies: ProjectCompanyWithDetails[]
   isLoading: boolean
   error: string | null
   fetchCompanies: () => Promise<void>
+  fetchProjectCompanies: (projectId: string) => Promise<void>
   createCompany: (company: Omit<Company, 'id' | 'created_at'>) => Promise<Company>
   updateCompany: (id: string, company: Partial<Company>) => Promise<void>
   deleteCompany: (id: string) => Promise<void>
+  addProjectCompany: (projectId: string, companyId: string, role: CompanyRole) => Promise<void>
+  removeProjectCompany: (projectCompanyId: string) => Promise<void>
+  updateProjectCompanyRole: (projectCompanyId: string, role: CompanyRole) => Promise<void>
 }
 
-export const useCompanyStore = create<CompanyState>((set) => ({
+export const useCompanyStore = create<CompanyState>((set, get) => ({
   companies: [],
+  projectCompanies: [],
   isLoading: false,
   error: null,
 
   fetchCompanies: async () => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
-
-      if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         set({ companies: mockCompanies, isLoading: false })
         return
       }
@@ -85,7 +91,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('name')
 
       if (error) throw error
       set({ companies: data || [], isLoading: false })
@@ -94,13 +100,60 @@ export const useCompanyStore = create<CompanyState>((set) => ({
     }
   },
 
+  fetchProjectCompanies: async (projectId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        // デモモード: プロジェクトに紐づくモックデータ
+        const mockProjectCompanies: ProjectCompanyWithDetails[] = [
+          {
+            id: 'pc-1',
+            project_id: projectId,
+            company_id: 'company-2',
+            role: 'sub_surveying',
+            joined_at: '2024-04-01T00:00:00Z',
+            company: mockCompanies[1],
+          },
+          {
+            id: 'pc-2',
+            project_id: projectId,
+            company_id: 'company-3',
+            role: 'sub_excavation',
+            joined_at: '2024-04-01T00:00:00Z',
+            company: mockCompanies[2],
+          },
+          {
+            id: 'pc-3',
+            project_id: projectId,
+            company_id: 'company-5',
+            role: 'sub_grading',
+            joined_at: '2024-04-01T00:00:00Z',
+            company: mockCompanies[4],
+          },
+        ]
+        set({ projectCompanies: mockProjectCompanies, isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('project_companies')
+        .select(`
+          *,
+          company:companies(*)
+        `)
+        .eq('project_id', projectId)
+
+      if (error) throw error
+      set({ projectCompanies: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
   createCompany: async (companyData) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
-
-      if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         const newCompany: Company = {
           ...companyData,
           id: `company-${Date.now()}`,
@@ -135,10 +188,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
   updateCompany: async (id, companyData) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
-
-      if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         set((state) => ({
           companies: state.companies.map((c) =>
             c.id === id ? { ...c, ...companyData } : c
@@ -170,10 +220,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
   deleteCompany: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const useDemoMode = true
-
-      if (useDemoMode || !import.meta.env.VITE_SUPABASE_URL) {
-        // デモモード
+      if (isDemoMode()) {
         set((state) => ({
           companies: state.companies.filter((c) => c.id !== id),
           isLoading: false,
@@ -187,6 +234,117 @@ export const useCompanyStore = create<CompanyState>((set) => ({
 
       set((state) => ({
         companies: state.companies.filter((c) => c.id !== id),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  addProjectCompany: async (projectId, companyId, role) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        const company = get().companies.find((c) => c.id === companyId)
+        if (!company) throw new Error('業者が見つかりません')
+
+        const newProjectCompany: ProjectCompanyWithDetails = {
+          id: `pc-${Date.now()}`,
+          project_id: projectId,
+          company_id: companyId,
+          role,
+          joined_at: new Date().toISOString(),
+          company,
+        }
+        set((state) => ({
+          projectCompanies: [...state.projectCompanies, newProjectCompany],
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('project_companies')
+        .insert({
+          project_id: projectId,
+          company_id: companyId,
+          role,
+        })
+        .select(`
+          *,
+          company:companies(*)
+        `)
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        projectCompanies: [...state.projectCompanies, data],
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  removeProjectCompany: async (projectCompanyId) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        set((state) => ({
+          projectCompanies: state.projectCompanies.filter(
+            (pc) => pc.id !== projectCompanyId
+          ),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('project_companies')
+        .delete()
+        .eq('id', projectCompanyId)
+
+      if (error) throw error
+
+      set((state) => ({
+        projectCompanies: state.projectCompanies.filter(
+          (pc) => pc.id !== projectCompanyId
+        ),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  updateProjectCompanyRole: async (projectCompanyId, role) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (isDemoMode()) {
+        set((state) => ({
+          projectCompanies: state.projectCompanies.map((pc) =>
+            pc.id === projectCompanyId ? { ...pc, role } : pc
+          ),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('project_companies')
+        .update({ role })
+        .eq('id', projectCompanyId)
+
+      if (error) throw error
+
+      set((state) => ({
+        projectCompanies: state.projectCompanies.map((pc) =>
+          pc.id === projectCompanyId ? { ...pc, role } : pc
+        ),
         isLoading: false,
       }))
     } catch (error) {

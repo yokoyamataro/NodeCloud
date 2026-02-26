@@ -360,3 +360,8 @@ export interface FieldWorkAreaWithWorkType extends FieldWorkArea {
 export interface FieldCropWithCropType extends FieldCrop {
   crop_type: CropType
 }
+
+// 工事に紐づく協力業者（結合型）
+export interface ProjectCompanyWithDetails extends ProjectCompany {
+  company: Company
+}

@@ -11,6 +11,7 @@ import {
   Building2,
   Users,
   Wheat,
+  Handshake,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -29,6 +30,7 @@ const mainNavItems: NavItem[] = [
   { to: '/calendar', icon: Calendar, label: 'カレンダー' },
   { to: '/chat', icon: MessageSquare, label: 'チャット' },
   { to: '/reports', icon: FileText, label: '日報' },
+  { to: '/contractors', icon: Handshake, label: '協力業者' },
 ]
 
 const adminNavItems: NavItem[] = [
