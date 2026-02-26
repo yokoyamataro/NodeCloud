@@ -22,7 +22,7 @@ export function CalendarPage() {
     fetchWorkTypes,
     isLoading
   } = useProjectStore()
-  const { selectedProjectId } = useSelectedProjectStore()
+  const { selectedProjectId, _hasHydrated } = useSelectedProjectStore()
 
   const [selectedWorkType, setSelectedWorkType] = useState<string>('all')
 
@@ -32,10 +32,10 @@ export function CalendarPage() {
   }, [fetchProjects, fetchWorkTypes])
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (_hasHydrated && selectedProjectId) {
       fetchProjectFields(selectedProjectId)
     }
-  }, [selectedProjectId, fetchProjectFields])
+  }, [_hasHydrated, selectedProjectId, fetchProjectFields])
 
   const selectedProject = projects.find(p => p.id === selectedProjectId)
 

@@ -20,6 +20,9 @@ interface SelectedProjectState {
   projectMapBounds: Record<string, MapBounds>
   setProjectMapBounds: (projectId: string, bounds: MapBounds) => void
   getProjectMapBounds: (projectId: string) => MapBounds | null
+  // Hydration状態
+  _hasHydrated: boolean
+  setHasHydrated: (state: boolean) => void
 }
 
 export const useSelectedProjectStore = create<SelectedProjectState>()(
@@ -38,9 +41,14 @@ export const useSelectedProjectStore = create<SelectedProjectState>()(
       getProjectMapBounds: (projectId) => {
         return get().projectMapBounds[projectId] || null
       },
+      _hasHydrated: false,
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: 'selected-project',
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
     }
   )
 )

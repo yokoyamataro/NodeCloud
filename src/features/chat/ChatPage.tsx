@@ -9,7 +9,7 @@ import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
 export function ChatPage() {
   const { projects, fetchProjects } = useProjectStore()
-  const { selectedProjectId } = useSelectedProjectStore()
+  const { selectedProjectId, _hasHydrated } = useSelectedProjectStore()
   const { channels, currentChannel, fetchChannels, setCurrentChannel } = useChatStore()
   const prevProjectIdRef = useRef<string | null>(null)
 
@@ -18,10 +18,10 @@ export function ChatPage() {
   }, [fetchProjects])
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (_hasHydrated && selectedProjectId) {
       fetchChannels(selectedProjectId)
     }
-  }, [selectedProjectId, fetchChannels])
+  }, [_hasHydrated, selectedProjectId, fetchChannels])
 
   // プロジェクトが変わったらチャンネル選択をリセット
   useEffect(() => {

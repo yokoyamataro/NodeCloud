@@ -109,7 +109,7 @@ export function FieldListPage() {
     createFieldWorkArea,
   } = useFieldStore()
   const { projects, fetchProjects } = useProjectStore()
-  const { selectedProjectId } = useSelectedProjectStore()
+  const { selectedProjectId, _hasHydrated } = useSelectedProjectStore()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterFarmer, setFilterFarmer] = useState<string>('all')
@@ -125,12 +125,12 @@ export function FieldListPage() {
   }, [fetchProjects, fetchWorkTypes])
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (_hasHydrated && selectedProjectId) {
       fetchFields(selectedProjectId)
       fetchFarmers(selectedProjectId)
       fetchProjectFields(selectedProjectId)
     }
-  }, [selectedProjectId, fetchFields, fetchFarmers, fetchProjectFields])
+  }, [_hasHydrated, selectedProjectId, fetchFields, fetchFarmers, fetchProjectFields])
 
   // 全圃場の工種別面積と作付けを取得
   useEffect(() => {

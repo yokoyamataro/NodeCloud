@@ -11,7 +11,7 @@ import { useFieldStore } from '@/stores/fieldStore'
 export function MapPage() {
   const [selectedField, setSelectedField] = useState<string | null>(null)
   const { projects, fetchProjects } = useProjectStore()
-  const { selectedProjectId } = useSelectedProjectStore()
+  const { selectedProjectId, _hasHydrated } = useSelectedProjectStore()
   const { fields, fetchFields } = useFieldStore()
 
   useEffect(() => {
@@ -19,10 +19,10 @@ export function MapPage() {
   }, [fetchProjects])
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (_hasHydrated && selectedProjectId) {
       fetchFields(selectedProjectId)
     }
-  }, [selectedProjectId, fetchFields])
+  }, [_hasHydrated, selectedProjectId, fetchFields])
 
   const selectedProject = projects.find(p => p.id === selectedProjectId)
   const fieldsWithPolygon = fields.filter(f => f.area_polygon).length
