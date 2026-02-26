@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { mapboxgl, HOKKAIDO_CENTER, DEFAULT_ZOOM, getFieldPolygonColor } from '@/lib/mapbox'
 import { useFieldStore } from '@/stores/fieldStore'
+import { useSelectedProjectStore } from '@/stores/projectStore'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 interface MapViewProps {
@@ -15,8 +16,10 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
   const markersRef = useRef<mapboxgl.Marker[]>([])
   const [mapLoaded, setMapLoaded] = useState(false)
   const [noToken, setNoToken] = useState(false)
+  const initialBoundsApplied = useRef(false)
 
   const { fields, projectFields, fetchFields, fetchProjectFields } = useFieldStore()
+  const { getProjectMapBounds, setProjectMapBounds } = useSelectedProjectStore()
 
   // データを取得
   useEffect(() => {
@@ -44,6 +47,16 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
     )
   }
 
+  // 地図の範囲を保存する関数
+  const saveMapBounds = useCallback(() => {
+    if (!map.current || !projectId) return
+    const bounds = map.current.getBounds()
+    setProjectMapBounds(projectId, {
+      sw: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+      ne: [bounds.getNorthEast().lng, bounds.getNorthEast().lat],
+    })
+  }, [projectId, setProjectMapBounds])
+
   useEffect(() => {
     if (!mapContainer.current) return
 
@@ -56,12 +69,25 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
     // すでに初期化済みの場合はスキップ
     if (map.current) return
 
+    // 保存された範囲を取得
+    const savedBounds = projectId ? getProjectMapBounds(projectId) : null
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: HOKKAIDO_CENTER,
       zoom: DEFAULT_ZOOM,
+      // 保存された範囲がある場合は初期表示に使用
+      ...(savedBounds && {
+        bounds: [savedBounds.sw, savedBounds.ne] as [[number, number], [number, number]],
+        fitBoundsOptions: { padding: 50 },
+      }),
     })
+
+    // 保存された範囲があればフラグを立てる（後でfitBoundsをスキップするため）
+    if (savedBounds) {
+      initialBoundsApplied.current = true
+    }
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     map.current.addControl(new mapboxgl.ScaleControl(), 'bottom-left')
@@ -70,11 +96,15 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
       setMapLoaded(true)
     })
 
+    // 地図の移動・ズーム終了時に範囲を保存
+    map.current.on('moveend', saveMapBounds)
+
     return () => {
       map.current?.remove()
       map.current = null
+      initialBoundsApplied.current = false
     }
-  }, [])
+  }, [projectId, getProjectMapBounds, saveMapBounds])
 
   // 圃場ポリゴンを表示
   useEffect(() => {
@@ -185,8 +215,8 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
       markersRef.current.push(marker)
     })
 
-    // 圃場にズーム
-    if (fieldsWithPolygon.length > 0) {
+    // 圃場にズーム（保存された範囲がない場合のみ）
+    if (fieldsWithPolygon.length > 0 && !initialBoundsApplied.current) {
       const bounds = new mapboxgl.LngLatBounds()
       fieldsWithPolygon.forEach((field) => {
         const polygon = field.area_polygon as { type: string; coordinates: number[][][] }
@@ -198,6 +228,8 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
       })
       map.current!.fitBounds(bounds, { padding: 50 })
     }
+    // 初回のfitBoundsが終わったらフラグをリセット（次回以降の圃場追加時にはfitBoundsを適用）
+    // ただし、保存された範囲で初期化した場合は維持
   }, [fields, fieldsWithPolygon, projectFields, mapLoaded, onFieldClick])
 
   if (noToken) {

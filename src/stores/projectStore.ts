@@ -6,17 +6,38 @@ import type { Project, ProjectFieldWithDetails, WorkType } from '@/types/databas
 // デモモードの判定
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
 
+// 地図の範囲（bounds）の型定義
+interface MapBounds {
+  sw: [number, number]  // 南西 [lng, lat]
+  ne: [number, number]  // 北東 [lng, lat]
+}
+
 // 選択中の工事IDを管理するストア（永続化）
 interface SelectedProjectState {
   selectedProjectId: string | null
   setSelectedProjectId: (id: string | null) => void
+  // プロジェクトごとの地図範囲を保存
+  projectMapBounds: Record<string, MapBounds>
+  setProjectMapBounds: (projectId: string, bounds: MapBounds) => void
+  getProjectMapBounds: (projectId: string) => MapBounds | null
 }
 
 export const useSelectedProjectStore = create<SelectedProjectState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       selectedProjectId: null,
       setSelectedProjectId: (id) => set({ selectedProjectId: id }),
+      projectMapBounds: {},
+      setProjectMapBounds: (projectId, bounds) =>
+        set((state) => ({
+          projectMapBounds: {
+            ...state.projectMapBounds,
+            [projectId]: bounds,
+          },
+        })),
+      getProjectMapBounds: (projectId) => {
+        return get().projectMapBounds[projectId] || null
+      },
     }),
     {
       name: 'selected-project',
