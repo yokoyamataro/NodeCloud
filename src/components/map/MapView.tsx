@@ -51,6 +51,7 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
   const saveMapBounds = useCallback(() => {
     if (!map.current || !projectId) return
     const bounds = map.current.getBounds()
+    if (!bounds) return
     setProjectMapBounds(projectId, {
       sw: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
       ne: [bounds.getNorthEast().lng, bounds.getNorthEast().lat],
