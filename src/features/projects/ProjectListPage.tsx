@@ -64,6 +64,7 @@ interface ProjectFormData {
   end_date: string
   coordinate_system: string
   description: string
+  status: ProjectStatus
 }
 
 const currentYear = new Date().getFullYear()
@@ -77,6 +78,7 @@ const initialFormData: ProjectFormData = {
   end_date: '',
   coordinate_system: 'EPSG:6680',
   description: '',
+  status: 'active',
 }
 
 export function ProjectListPage() {
@@ -114,7 +116,7 @@ export function ProjectListPage() {
         name: formData.name,
         description: formData.description || null,
         area_polygon: null,
-        status: 'planned',
+        status: formData.status,
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
         fiscal_year: formData.fiscal_year,
@@ -138,6 +140,7 @@ export function ProjectListPage() {
       await updateProject(editingProject, {
         name: formData.name,
         description: formData.description || null,
+        status: formData.status,
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
         fiscal_year: formData.fiscal_year,
@@ -181,6 +184,7 @@ export function ProjectListPage() {
       end_date: project.end_date || '',
       coordinate_system: project.coordinate_system || 'EPSG:6680',
       description: project.description || '',
+      status: project.status,
     })
     setIsDialogOpen(true)
   }
@@ -268,10 +272,8 @@ export function ProjectListPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべて</SelectItem>
-                <SelectItem value="planned">計画中</SelectItem>
                 <SelectItem value="active">進行中</SelectItem>
                 <SelectItem value="completed">完了</SelectItem>
-                <SelectItem value="suspended">中断</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -486,6 +488,22 @@ export function ProjectListPage() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">ステータス</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(v) => setFormData({ ...formData, status: v as ProjectStatus })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="ステータスを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">進行中</SelectItem>
+                  <SelectItem value="completed">完了</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
