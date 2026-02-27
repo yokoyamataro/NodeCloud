@@ -615,6 +615,10 @@ export const useFieldStore = create<FieldState>((set, get) => ({
           work_type_id: data.work_type_id,
           area_hectares: data.area_hectares,
           notes: data.notes,
+          planned_start: data.planned_start || null,
+          planned_end: data.planned_end || null,
+          actual_start: data.actual_start || null,
+          actual_end: data.actual_end || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           work_type: workType!,
@@ -633,6 +637,10 @@ export const useFieldStore = create<FieldState>((set, get) => ({
           work_type_id: data.work_type_id,
           area_hectares: data.area_hectares,
           notes: data.notes,
+          planned_start: data.planned_start,
+          planned_end: data.planned_end,
+          actual_start: data.actual_start,
+          actual_end: data.actual_end,
         })
         .select('*, work_type:work_types(*)')
         .single()

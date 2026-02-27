@@ -169,7 +169,7 @@ export function FieldListPage() {
         formData.farmer_id
       )
 
-      // 工種別面積を登録
+      // 工種を登録
       for (const workArea of formData.workAreas) {
         if (workArea.area_hectares > 0) {
           await createFieldWorkArea({
@@ -177,6 +177,10 @@ export function FieldListPage() {
             work_type_id: workArea.work_type_id,
             area_hectares: workArea.area_hectares,
             notes: null,
+            planned_start: null,
+            planned_end: null,
+            actual_start: null,
+            actual_end: null,
           })
         }
       }

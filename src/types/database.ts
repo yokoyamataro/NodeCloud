@@ -320,13 +320,17 @@ export interface ChatChannelWithDetails extends ChatChannel {
   unread_count?: number
 }
 
-// 圃場×工種ごとの面積
+// 圃場×工種ごとの面積・日程
 export interface FieldWorkArea {
   id: string
   field_id: string
   work_type_id: string
   area_hectares: number
   notes: string | null
+  planned_start: string | null
+  planned_end: string | null
+  actual_start: string | null
+  actual_end: string | null
   created_at: string
   updated_at: string
 }
