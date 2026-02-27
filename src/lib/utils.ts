@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatFieldLabel(farmerNumber: number, fieldNumber: number): string {
+export function formatFieldLabel(farmerNumber: number, fieldNumber: string | number): string {
   return `${farmerNumber}-${fieldNumber}`
 }
 

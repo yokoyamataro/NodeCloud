@@ -199,21 +199,29 @@ export function PolygonEditor({
     // 既存のレイヤーとソースを削除
     otherFields.forEach((field) => {
       const sourceId = `other-field-${field.id}`
+      const labelSourceId = `${sourceId}-label`
       const layerId = `other-field-fill-${field.id}`
       const outlineId = `other-field-outline-${field.id}`
       const labelId = `other-field-label-${field.id}`
 
-      if (map.current!.getLayer(labelId)) {
-        map.current!.removeLayer(labelId)
-      }
-      if (map.current!.getLayer(layerId)) {
-        map.current!.removeLayer(layerId)
-      }
-      if (map.current!.getLayer(outlineId)) {
-        map.current!.removeLayer(outlineId)
-      }
-      if (map.current!.getSource(sourceId)) {
-        map.current!.removeSource(sourceId)
+      try {
+        if (map.current!.getLayer(labelId)) {
+          map.current!.removeLayer(labelId)
+        }
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId)
+        }
+        if (map.current!.getLayer(outlineId)) {
+          map.current!.removeLayer(outlineId)
+        }
+        if (map.current!.getSource(labelSourceId)) {
+          map.current!.removeSource(labelSourceId)
+        }
+        if (map.current!.getSource(sourceId)) {
+          map.current!.removeSource(sourceId)
+        }
+      } catch (e) {
+        // 無視
       }
     })
 

@@ -85,7 +85,7 @@ export interface Database {
         Row: {
           id: string
           farmer_id: string
-          field_number: number
+          field_number: string
           area_polygon: Json | null
           area_hectares: number | null
           soil_type: string | null

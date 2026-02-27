@@ -78,7 +78,7 @@ export function FieldDetailPage() {
   const [isPolygonEditing, setIsPolygonEditing] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editData, setEditData] = useState({
-    field_number: 0,
+    field_number: '',
     area_hectares: 0,
     notes: '',
   })
@@ -842,12 +842,14 @@ export function FieldDetailPage() {
                 <Label htmlFor="field_number">圃場番号</Label>
                 <Input
                   id="field_number"
-                  type="number"
-                  min={1}
+                  type="text"
                   value={editData.field_number}
-                  onChange={(e) =>
-                    setEditData({ ...editData, field_number: parseInt(e.target.value) || 0 })
-                  }
+                  onChange={(e) => {
+                    // 半角英数記号のみ許可
+                    const value = e.target.value.replace(/[^\x20-\x7E]/g, '')
+                    setEditData({ ...editData, field_number: value })
+                  }}
+                  placeholder="例: 1, 1-A, A1"
                 />
               </div>
               <div className="space-y-2">

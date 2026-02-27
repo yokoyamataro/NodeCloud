@@ -148,10 +148,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             field: {
               id: 'field-1',
               farmer_id: 'farmer-1',
-              field_number: 1,
+              field_number: '1',
               area_polygon: null,
               area_hectares: 2.5,
-              soil_type: '黒ボク土',
+              soil_type: null,
               notes: null,
               created_at: '2024-03-01T00:00:00Z',
               farmer: {
@@ -211,10 +211,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             field: {
               id: 'field-2',
               farmer_id: 'farmer-1',
-              field_number: 2,
+              field_number: '2',
               area_polygon: null,
               area_hectares: 3.2,
-              soil_type: '黒ボク土',
+              soil_type: null,
               notes: null,
               created_at: '2024-03-01T00:00:00Z',
               farmer: {
@@ -256,10 +256,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             field: {
               id: 'field-3',
               farmer_id: 'farmer-2',
-              field_number: 1,
+              field_number: '1',
               area_polygon: null,
               area_hectares: 1.8,
-              soil_type: '沖積土',
+              soil_type: null,
               notes: null,
               created_at: '2024-03-01T00:00:00Z',
               farmer: {

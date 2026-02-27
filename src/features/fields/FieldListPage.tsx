@@ -40,7 +40,7 @@ interface WorkAreaInput {
 
 interface FieldFormData {
   farmer_id: string
-  field_number: number
+  field_number: string
   area_hectares: number
   notes: string
   workAreas: WorkAreaInput[]
@@ -48,7 +48,7 @@ interface FieldFormData {
 
 const initialFormData: FieldFormData = {
   farmer_id: '',
-  field_number: 1,
+  field_number: '',
   area_hectares: 0,
   notes: '',
   workAreas: [],
@@ -513,13 +513,7 @@ export function FieldListPage() {
               <Select
                 value={formData.farmer_id}
                 onValueChange={(v) => {
-                  // 選択した農家の既存圃場番号の最大値を取得し、+1を設定
-                  const farmerFields = fields.filter((f) => f.farmer_id === v)
-                  const maxFieldNumber = farmerFields.reduce(
-                    (max, f) => Math.max(max, f.field_number),
-                    0
-                  )
-                  setFormData({ ...formData, farmer_id: v, field_number: maxFieldNumber + 1 })
+                  setFormData({ ...formData, farmer_id: v })
                 }}
               >
                 <SelectTrigger>
@@ -539,12 +533,14 @@ export function FieldListPage() {
                 <Label htmlFor="field_number">圃場番号 *</Label>
                 <Input
                   id="field_number"
-                  type="number"
-                  min={1}
+                  type="text"
                   value={formData.field_number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, field_number: parseInt(e.target.value) || 1 })
-                  }
+                  onChange={(e) => {
+                    // 半角英数記号のみ許可
+                    const value = e.target.value.replace(/[^\x20-\x7E]/g, '')
+                    setFormData({ ...formData, field_number: value })
+                  }}
+                  placeholder="例: 1, 1-A, A1"
                 />
               </div>
               <div className="space-y-2">
@@ -609,7 +605,7 @@ export function FieldListPage() {
             </Button>
             <Button
               onClick={handleCreateField}
-              disabled={!formData.farmer_id || !formData.field_number}
+              disabled={!formData.farmer_id || !formData.field_number.trim()}
             >
               追加
             </Button>

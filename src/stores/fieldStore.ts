@@ -48,7 +48,7 @@ const mockFields: FieldWithFarmer[] = [
   {
     id: 'field-1',
     farmer_id: 'farmer-1',
-    field_number: 1,
+    field_number: '1',
     area_polygon: {
       type: 'Polygon',
       coordinates: [[
@@ -68,7 +68,7 @@ const mockFields: FieldWithFarmer[] = [
   {
     id: 'field-2',
     farmer_id: 'farmer-1',
-    field_number: 2,
+    field_number: '2',
     area_polygon: {
       type: 'Polygon',
       coordinates: [[
@@ -88,7 +88,7 @@ const mockFields: FieldWithFarmer[] = [
   {
     id: 'field-3',
     farmer_id: 'farmer-2',
-    field_number: 1,
+    field_number: '1',
     area_polygon: {
       type: 'Polygon',
       coordinates: [[
@@ -108,7 +108,7 @@ const mockFields: FieldWithFarmer[] = [
   {
     id: 'field-4',
     farmer_id: 'farmer-2',
-    field_number: 2,
+    field_number: '2',
     area_polygon: null,
     area_hectares: 5.0,
     soil_type: null,
@@ -119,7 +119,7 @@ const mockFields: FieldWithFarmer[] = [
   {
     id: 'field-5',
     farmer_id: 'farmer-3',
-    field_number: 1,
+    field_number: '1',
     area_polygon: null,
     area_hectares: 3.0,
     soil_type: null,
