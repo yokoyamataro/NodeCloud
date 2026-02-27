@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Ruler, FileText, Pencil, Trash2, Save, X, User, Building2, Calendar, CheckCircle2, Clock, AlertCircle, Plus, Wheat, Layers } from 'lucide-react'
+import { ArrowLeft, MapPin, Pencil, Trash2, Save, X, User, Calendar, CheckCircle2, Clock, AlertCircle, Plus, Wheat, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -465,81 +465,8 @@ export function FieldDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左側：基本情報 */}
+        {/* 左側：詳細情報 */}
         <div className="space-y-6">
-          {/* 基本情報カード */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">基本情報</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">農家番号</p>
-                  <p className="font-medium">{field.farmer.farmer_number}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">圃場番号</p>
-                  <p className="font-medium">{field.field_number}</p>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Ruler className="h-3 w-3" />
-                  面積
-                </p>
-                <p className="font-medium">
-                  {field.area_hectares ? `${field.area_hectares} ha` : '未設定'}
-                </p>
-              </div>
-              {field.notes && (
-                <div>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <FileText className="h-3 w-3" />
-                    備考
-                  </p>
-                  <p className="text-sm">{field.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 農家情報カード */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                農家情報
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <p className="text-sm text-muted-foreground">農家名</p>
-                <p className="font-medium">{field.farmer.name}</p>
-              </div>
-              {field.farmer.contact_info && (
-                <>
-                  {(field.farmer.contact_info as { phone?: string }).phone && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">電話番号</p>
-                      <p className="font-medium">
-                        {(field.farmer.contact_info as { phone: string }).phone}
-                      </p>
-                    </div>
-                  )}
-                  {(field.farmer.contact_info as { address?: string }).address && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">住所</p>
-                      <p className="text-sm">
-                        {(field.farmer.contact_info as { address: string }).address}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
           {/* 工種別面積 */}
           <Card>
             <CardHeader>
