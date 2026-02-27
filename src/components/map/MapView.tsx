@@ -17,9 +17,15 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
   const [mapLoaded, setMapLoaded] = useState(false)
   const [noToken, setNoToken] = useState(false)
   const initialBoundsApplied = useRef(false)
+  const projectIdRef = useRef(projectId)
 
   const { fields, projectFields, fetchFields, fetchProjectFields } = useFieldStore()
   const { getProjectMapBounds, setProjectMapBounds } = useSelectedProjectStore()
+
+  // projectIdの変更を追跡
+  useEffect(() => {
+    projectIdRef.current = projectId
+  }, [projectId])
 
   // データを取得
   useEffect(() => {
@@ -47,17 +53,18 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
     )
   }
 
-  // 地図の範囲を保存する関数
+  // 地図の範囲を保存する関数（refを使用して依存を避ける）
   const saveMapBounds = useCallback(() => {
-    if (!map.current || !projectId) return
+    if (!map.current || !projectIdRef.current) return
     const bounds = map.current.getBounds()
     if (!bounds) return
-    setProjectMapBounds(projectId, {
+    setProjectMapBounds(projectIdRef.current, {
       sw: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
       ne: [bounds.getNorthEast().lng, bounds.getNorthEast().lat],
     })
-  }, [projectId, setProjectMapBounds])
+  }, [setProjectMapBounds])
 
+  // 地図の初期化（一度だけ実行）
   useEffect(() => {
     if (!mapContainer.current) return
 
@@ -104,8 +111,10 @@ export function MapView({ className = '', projectId, onFieldClick }: MapViewProp
       map.current?.remove()
       map.current = null
       initialBoundsApplied.current = false
+      setMapLoaded(false)
     }
-  }, [projectId, getProjectMapBounds, saveMapBounds])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 圃場ポリゴンを表示
   useEffect(() => {

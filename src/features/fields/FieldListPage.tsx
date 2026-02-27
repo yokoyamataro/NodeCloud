@@ -33,16 +33,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { useFieldStore } from '@/stores/fieldStore'
 import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
 
-const SOIL_TYPES = [
-  '黒ボク土',
-  '褐色森林土',
-  '泥炭土',
-  'グライ土',
-  '灰色低地土',
-  '沖積土',
-  'その他',
-]
-
 interface WorkAreaInput {
   work_type_id: string
   area_hectares: number
@@ -52,7 +42,6 @@ interface FieldFormData {
   farmer_id: string
   field_number: number
   area_hectares: number
-  soil_type: string
   notes: string
   workAreas: WorkAreaInput[]
 }
@@ -61,7 +50,6 @@ const initialFormData: FieldFormData = {
   farmer_id: '',
   field_number: 1,
   area_hectares: 0,
-  soil_type: '',
   notes: '',
   workAreas: [],
 }
@@ -145,8 +133,7 @@ export function FieldListPage() {
     return fields.filter((field) => {
       const matchesSearch =
         field.farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        `${field.farmer.farmer_number}-${field.field_number}`.includes(searchQuery) ||
-        field.soil_type?.toLowerCase().includes(searchQuery.toLowerCase())
+        `${field.farmer.farmer_number}-${field.field_number}`.includes(searchQuery)
 
       const matchesFarmer = filterFarmer === 'all' || field.farmer_id === filterFarmer
 
@@ -175,7 +162,7 @@ export function FieldListPage() {
           farmer_id: formData.farmer_id,
           field_number: formData.field_number,
           area_hectares: formData.area_hectares || null,
-          soil_type: formData.soil_type || null,
+          soil_type: null,
           notes: formData.notes || null,
           area_polygon: null,
         },
@@ -573,24 +560,6 @@ export function FieldListPage() {
                   }
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="soil_type">土壌タイプ</Label>
-              <Select
-                value={formData.soil_type}
-                onValueChange={(v) => setFormData({ ...formData, soil_type: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOIL_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">備考</Label>

@@ -33,16 +33,6 @@ import { CoordinateInput } from '@/components/map/CoordinateInput'
 import { useFieldStore } from '@/stores/fieldStore'
 import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldCropWithCropType, FieldWorkAssignmentWithDetails } from '@/types/database'
 
-const SOIL_TYPES = [
-  '黒ボク土',
-  '褐色森林土',
-  '泥炭土',
-  'グライ土',
-  '灰色低地土',
-  '沖積土',
-  'その他',
-]
-
 const STATUS_CONFIG: Record<FieldWorkStatus, { label: string; color: string; icon: React.ElementType }> = {
   not_started: { label: '未着手', color: 'bg-gray-100 text-gray-700', icon: Clock },
   in_progress: { label: '進行中', color: 'bg-blue-100 text-blue-700', icon: AlertCircle },
@@ -90,7 +80,6 @@ export function FieldDetailPage() {
   const [editData, setEditData] = useState({
     field_number: 0,
     area_hectares: 0,
-    soil_type: '',
     notes: '',
   })
 
@@ -153,7 +142,6 @@ export function FieldDetailPage() {
         setEditData({
           field_number: foundField.field_number,
           area_hectares: foundField.area_hectares || 0,
-          soil_type: foundField.soil_type || '',
           notes: foundField.notes || '',
         })
       }
@@ -171,7 +159,6 @@ export function FieldDetailPage() {
       await updateField(field.id, {
         field_number: editData.field_number,
         area_hectares: editData.area_hectares || null,
-        soil_type: editData.soil_type || null,
         notes: editData.notes || null,
       })
       setField({ ...field, ...editData })
@@ -504,10 +491,6 @@ export function FieldDetailPage() {
                 <p className="font-medium">
                   {field.area_hectares ? `${field.area_hectares} ha` : '未設定'}
                 </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">土壌タイプ</p>
-                <p className="font-medium">{field.soil_type || '未設定'}</p>
               </div>
               {field.notes && (
                 <div>
@@ -880,24 +863,6 @@ export function FieldDetailPage() {
                   }
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="soil_type">土壌タイプ</Label>
-              <Select
-                value={editData.soil_type}
-                onValueChange={(v) => setEditData({ ...editData, soil_type: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOIL_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">備考</Label>

@@ -77,6 +77,7 @@ export function MapPage() {
           <Card>
             <CardContent className="p-0">
               <MapView
+                key={selectedProjectId}
                 className="h-[600px] rounded-lg"
                 projectId={selectedProjectId}
                 onFieldClick={handleFieldClick}
