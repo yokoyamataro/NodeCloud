@@ -28,10 +28,11 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PolygonEditor } from '@/components/map/PolygonEditor'
 import { CoordinateInput } from '@/components/map/CoordinateInput'
 import { useFieldStore } from '@/stores/fieldStore'
-import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldCropWithCropType, FieldWorkAssignmentWithDetails } from '@/types/database'
+import type { FieldWithFarmer, ProjectFieldWithDetails, FieldWorkStatus, FieldWorkAreaWithWorkType, FieldWorkAssignmentWithDetails } from '@/types/database'
 
 const STATUS_CONFIG: Record<FieldWorkStatus, { label: string; color: string; icon: React.ElementType }> = {
   not_started: { label: '未着手', color: 'bg-gray-100 text-gray-700', icon: Clock },
@@ -65,7 +66,6 @@ export function FieldDetailPage() {
     createCropType,
     fetchFieldCrops,
     createFieldCrop,
-    updateFieldCrop,
     deleteFieldCrop,
     createFieldWorkAssignment,
     updateFieldWorkAssignment,
@@ -94,13 +94,7 @@ export function FieldDetailPage() {
 
   // 作付けダイアログの状態
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false)
-  const [editingCrop, setEditingCrop] = useState<FieldCropWithCropType | null>(null)
-  const [cropForm, setCropForm] = useState({
-    crop_type_id: '',
-    fiscal_year: new Date().getFullYear(),
-    area_hectares: 0,
-    notes: '',
-  })
+  const [selectedCropTypeIds, setSelectedCropTypeIds] = useState<string[]>([])
 
   // 作付け追加ダイアログ
   const [isNewCropTypeDialogOpen, setIsNewCropTypeDialogOpen] = useState(false)
@@ -246,56 +240,51 @@ export function FieldDetailPage() {
   }
 
   // 作付けハンドラー
-  const handleOpenCropDialog = (crop?: FieldCropWithCropType) => {
-    if (crop) {
-      setEditingCrop(crop)
-      setCropForm({
-        crop_type_id: crop.crop_type_id,
-        fiscal_year: crop.fiscal_year || new Date().getFullYear(),
-        area_hectares: crop.area_hectares || 0,
-        notes: crop.notes || '',
-      })
-    } else {
-      setEditingCrop(null)
-      setCropForm({
-        crop_type_id: '',
-        fiscal_year: new Date().getFullYear(),
-        area_hectares: 0,
-        notes: '',
-      })
-    }
+  const handleOpenCropDialog = () => {
+    // 現在登録されている作付けIDをセット
+    setSelectedCropTypeIds(fieldCrops.map(fc => fc.crop_type_id))
     setIsCropDialogOpen(true)
   }
 
-  const handleSaveCrop = async () => {
-    if (!field) return
-    try {
-      if (editingCrop) {
-        await updateFieldCrop(editingCrop.id, {
-          fiscal_year: cropForm.fiscal_year || null,
-          area_hectares: cropForm.area_hectares || null,
-          notes: cropForm.notes || null,
-        })
-      } else {
-        await createFieldCrop({
-          field_id: field.id,
-          crop_type_id: cropForm.crop_type_id,
-          fiscal_year: cropForm.fiscal_year || null,
-          area_hectares: cropForm.area_hectares || null,
-          notes: cropForm.notes || null,
-        })
-      }
-      setIsCropDialogOpen(false)
-    } catch (error) {
-      console.error('Failed to save crop:', error)
-    }
+  const handleToggleCropType = (cropTypeId: string) => {
+    setSelectedCropTypeIds(prev =>
+      prev.includes(cropTypeId)
+        ? prev.filter(id => id !== cropTypeId)
+        : [...prev, cropTypeId]
+    )
   }
 
-  const handleDeleteCrop = async (id: string) => {
+  const handleSaveCrops = async () => {
+    if (!field) return
     try {
-      await deleteFieldCrop(id)
+      // 現在登録されている作付けIDのリスト
+      const currentCropTypeIds = fieldCrops.map(fc => fc.crop_type_id)
+
+      // 削除する作付け（現在あるが、選択されていないもの）
+      const toDelete = fieldCrops.filter(fc => !selectedCropTypeIds.includes(fc.crop_type_id))
+
+      // 追加する作付け（選択されているが、現在ないもの）
+      const toAdd = selectedCropTypeIds.filter(id => !currentCropTypeIds.includes(id))
+
+      // 削除処理
+      for (const fc of toDelete) {
+        await deleteFieldCrop(fc.id)
+      }
+
+      // 追加処理
+      for (const cropTypeId of toAdd) {
+        await createFieldCrop({
+          field_id: field.id,
+          crop_type_id: cropTypeId,
+          fiscal_year: null,
+          area_hectares: null,
+          notes: null,
+        })
+      }
+
+      setIsCropDialogOpen(false)
     } catch (error) {
-      console.error('Failed to delete crop:', error)
+      console.error('Failed to save crops:', error)
     }
   }
 
@@ -548,13 +537,10 @@ export function FieldDetailPage() {
                   variant="outline"
                   onClick={() => handleOpenCropDialog()}
                 >
-                  <Plus className="h-3 w-3 mr-1" />
-                  追加
+                  <Pencil className="h-3 w-3 mr-1" />
+                  編集
                 </Button>
               </div>
-              <CardDescription>
-                作付け情報を管理します
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {fieldCrops.length === 0 ? (
@@ -562,44 +548,16 @@ export function FieldDetailPage() {
                   作付けが登録されていません
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
                   {fieldCrops.map((fc) => (
-                    <div
+                    <Badge
                       key={fc.id}
-                      className="flex items-center justify-between p-2 rounded-md bg-gray-50 hover:bg-gray-100"
+                      variant="secondary"
+                      className="text-sm py-1 px-3"
                     >
-                      <div className="flex items-center gap-2">
-                        <Wheat className="h-4 w-4 text-amber-600" />
-                        <span className="text-sm font-medium">{fc.crop_type.name}</span>
-                        {fc.fiscal_year && (
-                          <Badge variant="outline" className="text-xs">
-                            {fc.fiscal_year}年度
-                          </Badge>
-                        )}
-                        {fc.area_hectares && (
-                          <span className="text-sm text-muted-foreground">
-                            {fc.area_hectares} ha
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenCropDialog(fc)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteCrop(fc.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                      <Wheat className="h-3 w-3 mr-1 text-amber-600" />
+                      {fc.crop_type.name}
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -925,91 +883,41 @@ export function FieldDetailPage() {
       <Dialog open={isCropDialogOpen} onOpenChange={setIsCropDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>
-              {editingCrop ? '作付けを編集' : '作付けを追加'}
-            </DialogTitle>
+            <DialogTitle>作付けを選択</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="crop_type">作付け種類</Label>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs"
-                  onClick={() => setIsNewCropTypeDialogOpen(true)}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  新規追加
-                </Button>
-              </div>
-              {editingCrop ? (
-                <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
-                  <Wheat className="h-4 w-4 text-amber-600" />
-                  <span>{editingCrop.crop_type.name}</span>
-                </div>
-              ) : (
-                <Select
-                  value={cropForm.crop_type_id}
-                  onValueChange={(v) => setCropForm({ ...cropForm, crop_type_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="作付け種類を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cropTypes.map((ct) => (
-                      <SelectItem key={ct.id} value={ct.id}>
-                        {ct.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+            <div className="flex items-center justify-between">
+              <Label>作付け種類（複数選択可）</Label>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs"
+                onClick={() => setIsNewCropTypeDialogOpen(true)}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                新規追加
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="crop_fiscal_year">年度</Label>
-                <Input
-                  id="crop_fiscal_year"
-                  type="number"
-                  value={cropForm.fiscal_year}
-                  onChange={(e) =>
-                    setCropForm({ ...cropForm, fiscal_year: parseInt(e.target.value) || new Date().getFullYear() })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="crop_area_hectares">面積 (ha)</Label>
-                <Input
-                  id="crop_area_hectares"
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={cropForm.area_hectares}
-                  onChange={(e) =>
-                    setCropForm({ ...cropForm, area_hectares: parseFloat(e.target.value) || 0 })
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="crop_notes">備考</Label>
-              <Textarea
-                id="crop_notes"
-                value={cropForm.notes}
-                onChange={(e) => setCropForm({ ...cropForm, notes: e.target.value })}
-                rows={2}
-              />
+            <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+              {cropTypes.map((ct) => (
+                <label
+                  key={ct.id}
+                  className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selectedCropTypeIds.includes(ct.id)}
+                    onCheckedChange={() => handleToggleCropType(ct.id)}
+                  />
+                  <span className="text-sm">{ct.name}</span>
+                </label>
+              ))}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCropDialogOpen(false)}>
               キャンセル
             </Button>
-            <Button
-              onClick={handleSaveCrop}
-              disabled={!editingCrop && !cropForm.crop_type_id}
-            >
+            <Button onClick={handleSaveCrops}>
               保存
             </Button>
           </DialogFooter>
