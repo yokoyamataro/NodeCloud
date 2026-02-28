@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,22 +9,26 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Filter, Download, Building2 } from 'lucide-react'
-import { GanttCalendar } from '@/components/calendar/GanttCalendar'
+import { GanttCalendar, GanttFieldData } from '@/components/calendar/GanttCalendar'
 import { useProjectStore, useSelectedProjectStore } from '@/stores/projectStore'
+import { useFieldStore } from '@/stores/fieldStore'
 
 export function CalendarPage() {
-  const {
-    projects,
-    projectFields,
-    workTypes,
-    fetchProjects,
-    fetchProjectFields,
-    fetchWorkTypes,
-    isLoading
-  } = useProjectStore()
+  const { projects, fetchProjects, isLoading: projectLoading } = useProjectStore()
   const { selectedProjectId, _hasHydrated } = useSelectedProjectStore()
+  const {
+    fields,
+    workTypes,
+    fieldWorkAreas,
+    fetchFields,
+    fetchWorkTypes,
+    fetchAllFieldWorkAreas,
+    isLoading: fieldLoading
+  } = useFieldStore()
 
   const [selectedWorkType, setSelectedWorkType] = useState<string>('all')
+
+  const isLoading = projectLoading || fieldLoading
 
   useEffect(() => {
     fetchProjects()
@@ -33,24 +37,48 @@ export function CalendarPage() {
 
   useEffect(() => {
     if (_hasHydrated && selectedProjectId) {
-      fetchProjectFields(selectedProjectId)
+      fetchFields(selectedProjectId)
     }
-  }, [_hasHydrated, selectedProjectId, fetchProjectFields])
+  }, [_hasHydrated, selectedProjectId, fetchFields])
+
+  // 圃場が取得できたら工種面積を取得
+  useEffect(() => {
+    if (fields.length > 0) {
+      const fieldIds = fields.map(f => f.id)
+      fetchAllFieldWorkAreas(fieldIds)
+    }
+  }, [fields, fetchAllFieldWorkAreas])
 
   const selectedProject = projects.find(p => p.id === selectedProjectId)
 
-  const handleAssignmentClick = (assignmentId: string) => {
-    console.log('Assignment clicked:', assignmentId)
+  const handleWorkAreaClick = (workAreaId: string) => {
+    console.log('WorkArea clicked:', workAreaId)
     // TODO: 詳細モーダルを表示
   }
 
+  // 圃場と工種面積データをGanttCalendar用に整形
+  const ganttFields: GanttFieldData[] = useMemo(() => {
+    return fields.map(field => {
+      const workAreas = fieldWorkAreas.filter(fwa => fwa.field_id === field.id)
+      return {
+        field,
+        workAreas
+      }
+    })
+  }, [fields, fieldWorkAreas])
+
   // 工種でフィルタリング
-  const filteredFields = selectedWorkType === 'all'
-    ? projectFields
-    : projectFields.map(pf => ({
-        ...pf,
-        assignments: pf.assignments.filter(a => a.work_type_id === selectedWorkType)
-      })).filter(pf => pf.assignments.length > 0)
+  const filteredFields = useMemo(() => {
+    if (selectedWorkType === 'all') {
+      return ganttFields
+    }
+    return ganttFields
+      .map(gf => ({
+        ...gf,
+        workAreas: gf.workAreas.filter(wa => wa.work_type_id === selectedWorkType)
+      }))
+      .filter(gf => gf.workAreas.length > 0)
+  }, [ganttFields, selectedWorkType])
 
   // 工事が選択されていない場合
   if (!selectedProjectId || !selectedProject) {
@@ -129,9 +157,9 @@ export function CalendarPage() {
       {/* ガントチャート */}
       {selectedProjectId ? (
         <GanttCalendar
-          projectFields={filteredFields}
+          fields={filteredFields}
           workTypes={workTypes}
-          onAssignmentClick={handleAssignmentClick}
+          onWorkAreaClick={handleWorkAreaClick}
         />
       ) : null}
 
@@ -146,9 +174,9 @@ export function CalendarPage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">作業数</p>
+              <p className="text-sm text-muted-foreground">工種数</p>
               <p className="text-2xl font-bold">
-                {filteredFields.reduce((sum, pf) => sum + pf.assignments.length, 0)}
+                {filteredFields.reduce((sum, gf) => sum + gf.workAreas.length, 0)}
               </p>
             </CardContent>
           </Card>
@@ -156,8 +184,8 @@ export function CalendarPage() {
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">完了</p>
               <p className="text-2xl font-bold text-green-600">
-                {filteredFields.reduce((sum, pf) =>
-                  sum + pf.assignments.filter(a => a.status === 'completed').length, 0
+                {filteredFields.reduce((sum, gf) =>
+                  sum + gf.workAreas.filter(wa => wa.actual_end !== null).length, 0
                 )}
               </p>
             </CardContent>
@@ -166,8 +194,8 @@ export function CalendarPage() {
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">進行中</p>
               <p className="text-2xl font-bold text-blue-600">
-                {filteredFields.reduce((sum, pf) =>
-                  sum + pf.assignments.filter(a => a.status === 'in_progress').length, 0
+                {filteredFields.reduce((sum, gf) =>
+                  sum + gf.workAreas.filter(wa => wa.actual_start !== null && wa.actual_end === null).length, 0
                 )}
               </p>
             </CardContent>

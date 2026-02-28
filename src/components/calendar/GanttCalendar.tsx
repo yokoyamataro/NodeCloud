@@ -6,18 +6,24 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { ProjectFieldWithDetails, WorkType } from '@/types/database'
+import type { FieldWithFarmer, FieldWorkAreaWithWorkType, WorkType } from '@/types/database'
+
+// カレンダー表示用の圃場データ
+export interface GanttFieldData {
+  field: FieldWithFarmer
+  workAreas: FieldWorkAreaWithWorkType[]
+}
 
 interface GanttCalendarProps {
-  projectFields: ProjectFieldWithDetails[]
+  fields: GanttFieldData[]
   workTypes: WorkType[]
-  onAssignmentClick?: (assignmentId: string) => void
+  onWorkAreaClick?: (workAreaId: string) => void
 }
 
 const DAY_WIDTH = 32
 const FIELD_LABEL_WIDTH = 120
 
-export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: GanttCalendarProps) {
+export function GanttCalendar({ fields, workTypes, onWorkAreaClick }: GanttCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
   const monthStart = startOfMonth(currentMonth)
@@ -30,12 +36,12 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
 
   // 圃場を農家番号・圃場番号でソート
   const sortedFields = useMemo(() => {
-    return [...projectFields].sort((a, b) => {
+    return [...fields].sort((a, b) => {
       const aLabel = `${a.field.farmer.farmer_number}-${a.field.field_number}`
       const bLabel = `${b.field.farmer.farmer_number}-${b.field.field_number}`
       return aLabel.localeCompare(bLabel, 'ja', { numeric: true })
     })
-  }, [projectFields])
+  }, [fields])
 
   return (
     <div className="bg-white rounded-lg border">
@@ -96,11 +102,11 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
 
           {/* 圃場行 */}
           <TooltipProvider>
-            {sortedFields.map((projectField) => {
-              const fieldLabel = `${projectField.field.farmer.farmer_number}-${projectField.field.field_number}`
+            {sortedFields.map((ganttField) => {
+              const fieldLabel = `${ganttField.field.farmer.farmer_number}-${ganttField.field.field_number}`
 
               return (
-                <div key={projectField.id} className="flex border-b hover:bg-gray-50">
+                <div key={ganttField.field.id} className="flex border-b hover:bg-gray-50">
                   {/* 圃場ラベル */}
                   <div
                     className="flex-shrink-0 border-r p-2 bg-gray-50"
@@ -108,7 +114,7 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                   >
                     <div className="font-medium text-sm">{fieldLabel}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {projectField.field.farmer.name}
+                      {ganttField.field.farmer.name}
                     </div>
                   </div>
 
@@ -132,14 +138,14 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                     })}
 
                     {/* 作業バー（予定と実績） */}
-                    {projectField.assignments.map((assignment, idx) => {
-                      const workType = workTypes.find(wt => wt.id === assignment.work_type_id)
+                    {ganttField.workAreas.map((workArea, idx) => {
+                      const workType = workTypes.find(wt => wt.id === workArea.work_type_id)
                       const bars: React.ReactNode[] = []
 
                       // 予定バー
-                      if (assignment.planned_start && assignment.planned_end) {
-                        const startDate = parseISO(assignment.planned_start)
-                        const endDate = parseISO(assignment.planned_end)
+                      if (workArea.planned_start && workArea.planned_end) {
+                        const startDate = parseISO(workArea.planned_start)
+                        const endDate = parseISO(workArea.planned_end)
 
                         if (!(endDate < monthStart || startDate > monthEnd)) {
                           const displayStart = startDate < monthStart ? monthStart : startDate
@@ -148,24 +154,25 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                           const durationDays = differenceInDays(displayEnd, displayStart) + 1
 
                           bars.push(
-                            <Tooltip key={`${assignment.id}-planned`}>
+                            <Tooltip key={`${workArea.id}-planned`}>
                               <TooltipTrigger asChild>
                                 <div
                                   className="absolute h-3 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-xs font-medium border-2 border-dashed"
                                   style={{
                                     left: offsetDays * DAY_WIDTH + 2,
                                     width: durationDays * DAY_WIDTH - 4,
-                                    top: 4 + idx * 2,
+                                    top: 4 + idx * 20,
                                     backgroundColor: 'transparent',
                                     borderColor: workType?.color || '#6B7280',
                                   }}
-                                  onClick={() => onAssignmentClick?.(assignment.id)}
+                                  onClick={() => onWorkAreaClick?.(workArea.id)}
                                 />
                               </TooltipTrigger>
                               <TooltipContent>
                                 <div className="text-sm">
                                   <p className="font-medium">{workType?.name}（予定）</p>
-                                  <p>{assignment.planned_start} 〜 {assignment.planned_end}</p>
+                                  <p>{workArea.planned_start} 〜 {workArea.planned_end}</p>
+                                  <p>面積: {workArea.area_hectares}ha</p>
                                 </div>
                               </TooltipContent>
                             </Tooltip>
@@ -174,10 +181,10 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                       }
 
                       // 実績バー
-                      if (assignment.actual_start) {
-                        const startDate = parseISO(assignment.actual_start)
-                        const endDate = assignment.actual_end
-                          ? parseISO(assignment.actual_end)
+                      if (workArea.actual_start) {
+                        const startDate = parseISO(workArea.actual_start)
+                        const endDate = workArea.actual_end
+                          ? parseISO(workArea.actual_end)
                           : new Date() // 完了日がなければ今日まで
 
                         if (!(endDate < monthStart || startDate > monthEnd)) {
@@ -187,21 +194,21 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                           const durationDays = differenceInDays(displayEnd, displayStart) + 1
 
                           bars.push(
-                            <Tooltip key={`${assignment.id}-actual`}>
+                            <Tooltip key={`${workArea.id}-actual`}>
                               <TooltipTrigger asChild>
                                 <div
                                   className="absolute h-5 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-xs font-medium shadow-sm"
                                   style={{
                                     left: offsetDays * DAY_WIDTH + 2,
                                     width: durationDays * DAY_WIDTH - 4,
-                                    top: 12 + idx * 2,
+                                    top: 12 + idx * 20,
                                     backgroundColor: workType?.color || '#6B7280',
                                   }}
-                                  onClick={() => onAssignmentClick?.(assignment.id)}
+                                  onClick={() => onWorkAreaClick?.(workArea.id)}
                                 >
                                   {durationDays >= 3 && (
                                     <span className="truncate px-1">
-                                      {workType?.name} {assignment.progress_pct}%
+                                      {workType?.name}
                                     </span>
                                   )}
                                 </div>
@@ -209,8 +216,8 @@ export function GanttCalendar({ projectFields, workTypes, onAssignmentClick }: G
                               <TooltipContent>
                                 <div className="text-sm">
                                   <p className="font-medium">{workType?.name}（実績）</p>
-                                  <p>{assignment.actual_start} 〜 {assignment.actual_end || '作業中'}</p>
-                                  <p>進捗: {assignment.progress_pct}%</p>
+                                  <p>{workArea.actual_start} 〜 {workArea.actual_end || '作業中'}</p>
+                                  <p>面積: {workArea.area_hectares}ha</p>
                                 </div>
                               </TooltipContent>
                             </Tooltip>
