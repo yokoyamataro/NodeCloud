@@ -369,3 +369,24 @@ export interface FieldCropWithCropType extends FieldCrop {
 export interface ProjectCompanyWithDetails extends ProjectCompany {
   company: Company
 }
+
+// 細部工程（工種のサブ工程）
+export interface WorkAreaSubProcess {
+  id: string
+  field_work_area_id: string
+  name: string
+  display_order: number
+  planned_start: string | null
+  planned_end: string | null
+  actual_start: string | null
+  actual_end: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// 工種面積と細部工程を含む結合型
+export interface FieldWorkAreaWithDetails extends FieldWorkArea {
+  work_type: WorkType
+  sub_processes: WorkAreaSubProcess[]
+}

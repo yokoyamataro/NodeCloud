@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Pencil, Trash2, Save, X, Plus, Wheat, Layers, User } from 'lucide-react'
+import { ArrowLeft, MapPin, Pencil, Trash2, Save, X, Plus, Wheat, Layers, User, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +31,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { PolygonEditor } from '@/components/map/PolygonEditor'
 import { CoordinateInput } from '@/components/map/CoordinateInput'
 import { useFieldStore } from '@/stores/fieldStore'
-import type { FieldWithFarmer, FieldWorkAreaWithWorkType } from '@/types/database'
+import type { FieldWithFarmer, FieldWorkAreaWithWorkType, WorkAreaSubProcess } from '@/types/database'
 
 export function FieldDetailPage() {
   const { fieldId } = useParams<{ fieldId: string }>()
@@ -57,6 +57,11 @@ export function FieldDetailPage() {
     fetchFieldCrops,
     createFieldCrop,
     deleteFieldCrop,
+    subProcesses,
+    fetchSubProcesses,
+    createSubProcess,
+    updateSubProcess,
+    deleteSubProcess,
   } = useFieldStore()
 
   const [field, setField] = useState<FieldWithFarmer | null>(null)
@@ -89,6 +94,21 @@ export function FieldDetailPage() {
   // 作付け追加ダイアログ
   const [isNewCropTypeDialogOpen, setIsNewCropTypeDialogOpen] = useState(false)
   const [newCropTypeName, setNewCropTypeName] = useState('')
+
+  // 細部工程の状態
+  const [expandedWorkAreaId, setExpandedWorkAreaId] = useState<string | null>(null)
+  const [isSubProcessDialogOpen, setIsSubProcessDialogOpen] = useState(false)
+  const [editingSubProcess, setEditingSubProcess] = useState<WorkAreaSubProcess | null>(null)
+  const [subProcessForm, setSubProcessForm] = useState({
+    field_work_area_id: '',
+    name: '',
+    display_order: 0,
+    planned_start: '',
+    planned_end: '',
+    actual_start: '',
+    actual_end: '',
+    notes: '',
+  })
 
   useEffect(() => {
     fetchFields()
@@ -287,10 +307,93 @@ export function FieldDetailPage() {
     }
   }
 
+  // 細部工程ハンドラー
+  const handleToggleExpand = async (workAreaId: string) => {
+    if (expandedWorkAreaId === workAreaId) {
+      setExpandedWorkAreaId(null)
+    } else {
+      setExpandedWorkAreaId(workAreaId)
+      await fetchSubProcesses(workAreaId)
+    }
+  }
+
+  const handleOpenSubProcessDialog = (workAreaId: string, subProcess?: WorkAreaSubProcess) => {
+    const currentSubProcesses = subProcesses.filter(sp => sp.field_work_area_id === workAreaId)
+    if (subProcess) {
+      setEditingSubProcess(subProcess)
+      setSubProcessForm({
+        field_work_area_id: subProcess.field_work_area_id,
+        name: subProcess.name,
+        display_order: subProcess.display_order,
+        planned_start: subProcess.planned_start || '',
+        planned_end: subProcess.planned_end || '',
+        actual_start: subProcess.actual_start || '',
+        actual_end: subProcess.actual_end || '',
+        notes: subProcess.notes || '',
+      })
+    } else {
+      setEditingSubProcess(null)
+      setSubProcessForm({
+        field_work_area_id: workAreaId,
+        name: '',
+        display_order: currentSubProcesses.length,
+        planned_start: '',
+        planned_end: '',
+        actual_start: '',
+        actual_end: '',
+        notes: '',
+      })
+    }
+    setIsSubProcessDialogOpen(true)
+  }
+
+  const handleSaveSubProcess = async () => {
+    try {
+      if (editingSubProcess) {
+        await updateSubProcess(editingSubProcess.id, {
+          name: subProcessForm.name,
+          display_order: subProcessForm.display_order,
+          planned_start: subProcessForm.planned_start || null,
+          planned_end: subProcessForm.planned_end || null,
+          actual_start: subProcessForm.actual_start || null,
+          actual_end: subProcessForm.actual_end || null,
+          notes: subProcessForm.notes || null,
+        })
+      } else {
+        await createSubProcess({
+          field_work_area_id: subProcessForm.field_work_area_id,
+          name: subProcessForm.name,
+          display_order: subProcessForm.display_order,
+          planned_start: subProcessForm.planned_start || null,
+          planned_end: subProcessForm.planned_end || null,
+          actual_start: subProcessForm.actual_start || null,
+          actual_end: subProcessForm.actual_end || null,
+          notes: subProcessForm.notes || null,
+        })
+      }
+      setIsSubProcessDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to save sub process:', error)
+    }
+  }
+
+  const handleDeleteSubProcess = async (id: string) => {
+    try {
+      await deleteSubProcess(id)
+    } catch (error) {
+      console.error('Failed to delete sub process:', error)
+    }
+  }
+
   // 既に登録されている工種を除いた工種リスト
   const availableWorkTypes = workTypes.filter(
     wt => !fieldWorkAreas.some(fwa => fwa.work_type_id === wt.id)
   )
+
+  // 現在展開中の工種の細部工程を取得
+  const currentSubProcesses = expandedWorkAreaId
+    ? subProcesses.filter(sp => sp.field_work_area_id === expandedWorkAreaId)
+    : []
 
   if (!field) {
     return (
@@ -378,63 +481,155 @@ export function FieldDetailPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {fieldWorkAreas.map((fwa) => (
-                    <div
-                      key={fwa.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded"
-                            style={{ backgroundColor: fwa.work_type.color || '#9CA3AF' }}
-                          />
-                          <span className="text-sm font-medium">{fwa.work_type.name}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {fwa.area_hectares} ha
-                          </span>
+                  {fieldWorkAreas.map((fwa) => {
+                    const isExpanded = expandedWorkAreaId === fwa.id
+                    const fwaSubProcesses = isExpanded ? currentSubProcesses : []
+
+                    return (
+                      <div
+                        key={fwa.id}
+                        className="border rounded-lg overflow-hidden"
+                      >
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleToggleExpand(fwa.id)}
+                                className="p-0.5 hover:bg-gray-100 rounded"
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                                )}
+                              </button>
+                              <div
+                                className="w-3 h-3 rounded"
+                                style={{ backgroundColor: fwa.work_type.color || '#9CA3AF' }}
+                              />
+                              <span className="text-sm font-medium">{fwa.work_type.name}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {fwa.area_hectares} ha
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenWorkAreaDialog(fwa)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteWorkArea(fwa.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs ml-6">
+                            <div>
+                              <span className="text-muted-foreground">予定: </span>
+                              {fwa.planned_start && fwa.planned_end ? (
+                                <span>{fwa.planned_start} 〜 {fwa.planned_end}</span>
+                              ) : (
+                                <span className="text-muted-foreground">未設定</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">実績: </span>
+                              {fwa.actual_start ? (
+                                <span>
+                                  {fwa.actual_start}
+                                  {fwa.actual_end ? ` 〜 ${fwa.actual_end}` : ' 〜'}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">未着手</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleOpenWorkAreaDialog(fwa)}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteWorkArea(fwa.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+
+                        {/* 細部工程リスト */}
+                        {isExpanded && (
+                          <div className="border-t bg-gray-50 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-gray-600">細部工程</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs"
+                                onClick={() => handleOpenSubProcessDialog(fwa.id)}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                追加
+                              </Button>
+                            </div>
+                            {fwaSubProcesses.length === 0 ? (
+                              <p className="text-xs text-muted-foreground text-center py-2">
+                                細部工程がありません
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {fwaSubProcesses.map((sp) => (
+                                  <div
+                                    key={sp.id}
+                                    className="bg-white border rounded p-2 space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">{sp.name}</span>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 w-6 p-0"
+                                          onClick={() => handleOpenSubProcessDialog(fwa.id, sp)}
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                          onClick={() => handleDeleteSubProcess(sp.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-muted-foreground">予定: </span>
+                                        {sp.planned_start && sp.planned_end ? (
+                                          <span>{sp.planned_start} 〜 {sp.planned_end}</span>
+                                        ) : (
+                                          <span className="text-muted-foreground">未設定</span>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">実績: </span>
+                                        {sp.actual_start ? (
+                                          <span>
+                                            {sp.actual_start}
+                                            {sp.actual_end ? ` 〜 ${sp.actual_end}` : ' 〜'}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground">未着手</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">予定: </span>
-                          {fwa.planned_start && fwa.planned_end ? (
-                            <span>{fwa.planned_start} 〜 {fwa.planned_end}</span>
-                          ) : (
-                            <span className="text-muted-foreground">未設定</span>
-                          )}
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">実績: </span>
-                          {fwa.actual_start ? (
-                            <span>
-                              {fwa.actual_start}
-                              {fwa.actual_end ? ` 〜 ${fwa.actual_end}` : ' 〜'}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">未着手</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
@@ -815,6 +1010,98 @@ export function FieldDetailPage() {
               disabled={!newCropTypeName.trim()}
             >
               追加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 細部工程ダイアログ */}
+      <Dialog open={isSubProcessDialogOpen} onOpenChange={setIsSubProcessDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSubProcess ? '細部工程を編集' : '細部工程を追加'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sub_process_name">工程名</Label>
+              <Input
+                id="sub_process_name"
+                value={subProcessForm.name}
+                onChange={(e) =>
+                  setSubProcessForm({ ...subProcessForm, name: e.target.value })
+                }
+                placeholder="例: 掘削"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sp_planned_start">着工予定日</Label>
+                <Input
+                  id="sp_planned_start"
+                  type="date"
+                  value={subProcessForm.planned_start}
+                  onChange={(e) =>
+                    setSubProcessForm({ ...subProcessForm, planned_start: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sp_planned_end">完了予定日</Label>
+                <Input
+                  id="sp_planned_end"
+                  type="date"
+                  value={subProcessForm.planned_end}
+                  onChange={(e) =>
+                    setSubProcessForm({ ...subProcessForm, planned_end: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sp_actual_start">着工日（実績）</Label>
+                <Input
+                  id="sp_actual_start"
+                  type="date"
+                  value={subProcessForm.actual_start}
+                  onChange={(e) =>
+                    setSubProcessForm({ ...subProcessForm, actual_start: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sp_actual_end">完了日（実績）</Label>
+                <Input
+                  id="sp_actual_end"
+                  type="date"
+                  value={subProcessForm.actual_end}
+                  onChange={(e) =>
+                    setSubProcessForm({ ...subProcessForm, actual_end: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sp_notes">備考</Label>
+              <Textarea
+                id="sp_notes"
+                value={subProcessForm.notes}
+                onChange={(e) => setSubProcessForm({ ...subProcessForm, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSubProcessDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleSaveSubProcess}
+              disabled={!subProcessForm.name.trim()}
+            >
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>

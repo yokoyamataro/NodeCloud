@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
-import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType, FieldWorkArea, FieldWorkAreaWithWorkType, CropType, FieldCrop, FieldCropWithCropType, FieldWorkAssignment, FieldWorkAssignmentWithDetails } from '@/types/database'
+import type { Field, Farmer, FieldWithFarmer, ProjectFieldWithDetails, WorkType, FieldWorkArea, FieldWorkAreaWithWorkType, CropType, FieldCrop, FieldCropWithCropType, FieldWorkAssignment, FieldWorkAssignmentWithDetails, WorkAreaSubProcess } from '@/types/database'
 
 // デモモードの判定（環境変数が設定されていない場合はデモモード）
 const isDemoMode = () => !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true'
@@ -218,6 +218,12 @@ interface FieldState {
   createFieldWorkAssignment: (projectFieldId: string, data: Omit<FieldWorkAssignment, 'id' | 'project_field_id' | 'created_at' | 'updated_at'>) => Promise<FieldWorkAssignmentWithDetails>
   updateFieldWorkAssignment: (id: string, data: Partial<FieldWorkAssignment>) => Promise<void>
   deleteFieldWorkAssignment: (id: string) => Promise<void>
+  // 細部工程
+  subProcesses: WorkAreaSubProcess[]
+  fetchSubProcesses: (fieldWorkAreaId: string) => Promise<void>
+  createSubProcess: (data: Omit<WorkAreaSubProcess, 'id' | 'created_at' | 'updated_at'>) => Promise<WorkAreaSubProcess>
+  updateSubProcess: (id: string, data: Partial<WorkAreaSubProcess>) => Promise<void>
+  deleteSubProcess: (id: string) => Promise<void>
 }
 
 export const useFieldStore = create<FieldState>((set, get) => ({
@@ -228,6 +234,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   cropTypes: [],
   fieldWorkAreas: [],
   fieldCrops: [],
+  subProcesses: [],
   selectedField: null,
   isLoading: false,
   error: null,
@@ -1094,6 +1101,149 @@ export const useFieldStore = create<FieldState>((set, get) => ({
           ...pf,
           assignments: pf.assignments.filter((a) => a.id !== id),
         })),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 細部工程を取得
+  fetchSubProcesses: async (fieldWorkAreaId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        const currentSubProcesses = get().subProcesses.filter(sp => sp.field_work_area_id === fieldWorkAreaId)
+        set({ subProcesses: currentSubProcesses, isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('work_area_sub_processes')
+        .select('*')
+        .eq('field_work_area_id', fieldWorkAreaId)
+        .order('display_order')
+
+      if (error) throw error
+      set({ subProcesses: data || [], isLoading: false })
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+    }
+  },
+
+  // 細部工程を追加
+  createSubProcess: async (data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        const newSubProcess: WorkAreaSubProcess = {
+          id: `sp-${Date.now()}`,
+          field_work_area_id: data.field_work_area_id,
+          name: data.name,
+          display_order: data.display_order,
+          planned_start: data.planned_start || null,
+          planned_end: data.planned_end || null,
+          actual_start: data.actual_start || null,
+          actual_end: data.actual_end || null,
+          notes: data.notes || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+        set((state) => ({
+          subProcesses: [...state.subProcesses, newSubProcess],
+          isLoading: false,
+        }))
+        return newSubProcess
+      }
+
+      const { data: result, error } = await supabase
+        .from('work_area_sub_processes')
+        .insert({
+          field_work_area_id: data.field_work_area_id,
+          name: data.name,
+          display_order: data.display_order,
+          planned_start: data.planned_start,
+          planned_end: data.planned_end,
+          actual_start: data.actual_start,
+          actual_end: data.actual_end,
+          notes: data.notes,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        subProcesses: [...state.subProcesses, result],
+        isLoading: false,
+      }))
+      return result
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 細部工程を更新
+  updateSubProcess: async (id, data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          subProcesses: state.subProcesses.map((sp) =>
+            sp.id === id ? { ...sp, ...data, updated_at: new Date().toISOString() } : sp
+          ),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase
+        .from('work_area_sub_processes')
+        .update(data)
+        .eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        subProcesses: state.subProcesses.map((sp) =>
+          sp.id === id ? { ...sp, ...data, updated_at: new Date().toISOString() } : sp
+        ),
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false })
+      throw error
+    }
+  },
+
+  // 細部工程を削除
+  deleteSubProcess: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const useDemoMode = isDemoMode()
+
+      if (useDemoMode) {
+        set((state) => ({
+          subProcesses: state.subProcesses.filter((sp) => sp.id !== id),
+          isLoading: false,
+        }))
+        return
+      }
+
+      const { error } = await supabase.from('work_area_sub_processes').delete().eq('id', id)
+
+      if (error) throw error
+
+      set((state) => ({
+        subProcesses: state.subProcesses.filter((sp) => sp.id !== id),
         isLoading: false,
       }))
     } catch (error) {
